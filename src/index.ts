@@ -54,7 +54,7 @@ const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY ?? "",
 });
 
-const model = openrouter("qwen/qwen3-235b-a22b:free");
+const model = openrouter("meta-llama/llama-3.3-70b-instruct:free");
 
 let botId: string;
 
