@@ -36,3 +36,22 @@ model UserPreferences {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 }
+
+model InjectionAttempt {
+  id               String   @id @map("_id") @db.ObjectId
+  userId           String   @map("user_id") // discord user id
+  username         String   @map("username")
+  channelId        String   @map("channel_id")
+  originalMessage  String   @map("original_message")
+  sanitizedMessage String   @map("sanitized_message")
+  detectionScore   Int      @map("detection_score")
+  severity         String   @map("severity") // low, medium, high
+  detectedPatterns String[] @map("detected_patterns")
+  removedPatterns  String[] @map("removed_patterns")
+  wasBlocked       Boolean  @map("was_blocked")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([severity])
+}

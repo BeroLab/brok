@@ -19,9 +19,10 @@ export class RateLimiter {
     return { allowed: true };
   }
 
-  async setUserCooldown(userId: string): Promise<void> {
+  async setUserCooldown(userId: string, seconds?: number): Promise<void> {
     const key = REDIS_KEYS.userCooldown(userId);
-    await redis.setex(key, RATE_LIMITS.USER_COOLDOWN_SECONDS, "1");
+    const cooldownTime = seconds ?? RATE_LIMITS.USER_COOLDOWN_SECONDS;
+    await redis.setex(key, cooldownTime, "1");
   }
 
   async acquireGlobalSlot(): Promise<boolean> {
