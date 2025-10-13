@@ -14,6 +14,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum ChatStyle {
+  informative
+  acid
+}
+
 model FAQ {
   id        String   @id @map("_id") @db.ObjectId
   question  String   @map("question")
@@ -21,4 +26,12 @@ model FAQ {
   createdBy String   @map("created_by") // discord user id
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+}
+
+model UserPreferences {
+  id            String    @id @map("_id") @db.ObjectId
+  discordUserId String    @map("discord_user_id") // discord user id
+  chatStyle     ChatStyle @map("chat_style")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 }

@@ -22,6 +22,7 @@ export interface MessageJobData {
   messageId: string;
   messageContent: string;
   botMention: string;
+  feedbackMessageIds: string[];
 }
 
 export interface MessageJobContext {
@@ -65,10 +66,17 @@ export const messageWorker = new Worker<MessageJobData>(
     }
 
     const { api, model, identityPrompt, supportRoles, prisma } = workerContext;
-    const { userId, channelId, messageId, messageContent, botMention } =
-      job.data;
+    const {
+      userId,
+      channelId,
+      messageId,
+      messageContent,
+      botMention,
+      feedbackMessageIds,
+    } = job.data;
 
     let slotAcquired = false;
+    let typingInterval: NodeJS.Timeout | null = null;
 
     try {
       slotAcquired = await rateLimiter.acquireGlobalSlot();
@@ -79,6 +87,17 @@ export const messageWorker = new Worker<MessageJobData>(
 
       await rateLimiter.markChannelProcessing(channelId);
 
+      for (const feedbackId of feedbackMessageIds) {
+        try {
+          await api.channels.deleteMessage(channelId, feedbackId);
+        } catch (error) {
+          console.error(
+            `Failed to delete feedback message ${feedbackId}:`,
+            error
+          );
+        }
+      }
+
       const debounceMessages =
         (await debouncer.getAndClearMessages(userId)) || [];
       const allMessages =
@@ -88,12 +107,15 @@ export const messageWorker = new Worker<MessageJobData>(
         .map((msg) => msg.replace(botMention, "").trim())
         .join("\n\n---\n\n");
 
-      const thinkingMessage = await api.channels.createMessage(channelId, {
-        content: "🤔 perai to pensando...",
-        message_reference: {
-          message_id: messageId,
-        },
-      });
+      await api.channels.showTyping(channelId);
+
+      typingInterval = setInterval(async () => {
+        try {
+          await api.channels.showTyping(channelId);
+        } catch (error) {
+          console.error("Failed to show typing:", error);
+        }
+      }, 8000);
 
       const existentFAQ = await (prisma as any).fAQ.findMany();
 
@@ -119,14 +141,24 @@ export const messageWorker = new Worker<MessageJobData>(
         `,
       });
 
-      await api.channels.editMessage(channelId, thinkingMessage.id, {
+      if (typingInterval) {
+        clearInterval(typingInterval);
+      }
+
+      await api.channels.createMessage(channelId, {
         content: text,
+        message_reference: {
+          message_id: messageId,
+        },
       });
 
       await rateLimiter.setUserCooldown(userId);
 
       return { success: true };
     } finally {
+      if (typingInterval) {
+        clearInterval(typingInterval);
+      }
       if (slotAcquired) {
         await rateLimiter.releaseGlobalSlot();
       }

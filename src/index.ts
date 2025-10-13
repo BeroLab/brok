@@ -106,25 +106,28 @@ client.on(
       );
 
       if (!debounceResult.shouldProcess) {
-        await api.channels.createMessage(channelId, {
+        const feedbackMessage = await api.channels.createMessage(channelId, {
           content: "📝 recebi! aguarda só um pouquinho que eu to juntando suas mensagens...",
           message_reference: {
             message_id: message.id,
           },
         });
 
+        await debouncer.addFeedbackMessageId(userId, feedbackMessage.id);
+
         setTimeout(async () => {
           const hasDebounce = await debouncer.hasDebounceData(userId);
           if (hasDebounce) {
-            const messages = await debouncer.getAndClearMessages(userId);
-            if (messages.length > 0) {
+            const debounceData = await debouncer.getAndClearData(userId);
+            if (debounceData.messages.length > 0) {
               await messageQueue.add("process-message", {
                 userId,
                 username: message.author.username,
                 channelId,
                 messageId: message.id,
-                messageContent: messages.join("\n\n---\n\n"),
+                messageContent: debounceData.messages.join("\n\n---\n\n"),
                 botMention,
+                feedbackMessageIds: debounceData.feedbackMessageIds,
               });
             }
           }
@@ -152,6 +155,7 @@ client.on(
         messageId: message.id,
         messageContent,
         botMention,
+        feedbackMessageIds: [],
       });
     } catch (error) {
       console.error("Error handling message:", error);

@@ -5,6 +5,7 @@ interface DebounceData {
   messages: string[];
   channelId: string;
   timestamp: number;
+  feedbackMessageIds: string[];
 }
 
 export class Debouncer {
@@ -52,6 +53,7 @@ export class Debouncer {
       messages: [message],
       channelId,
       timestamp: now,
+      feedbackMessageIds: [],
     };
 
     await redis.setex(
@@ -63,6 +65,25 @@ export class Debouncer {
     return {
       shouldProcess: false,
     };
+  }
+
+  async addFeedbackMessageId(
+    userId: string,
+    messageId: string
+  ): Promise<void> {
+    const key = REDIS_KEYS.debounce(userId);
+    const existingData = await redis.get(key);
+
+    if (existingData) {
+      const data: DebounceData = JSON.parse(existingData);
+      data.feedbackMessageIds.push(messageId);
+
+      await redis.setex(
+        key,
+        Math.ceil(RATE_LIMITS.DEBOUNCE_WINDOW_MS / 1000),
+        JSON.stringify(data)
+      );
+    }
   }
 
   async getAndClearMessages(userId: string): Promise<string[]> {
@@ -77,6 +98,25 @@ export class Debouncer {
     await redis.del(key);
 
     return data.messages;
+  }
+
+  async getAndClearData(
+    userId: string
+  ): Promise<{ messages: string[]; feedbackMessageIds: string[] }> {
+    const key = REDIS_KEYS.debounce(userId);
+    const existingData = await redis.get(key);
+
+    if (!existingData) {
+      return { messages: [], feedbackMessageIds: [] };
+    }
+
+    const data: DebounceData = JSON.parse(existingData);
+    await redis.del(key);
+
+    return {
+      messages: data.messages,
+      feedbackMessageIds: data.feedbackMessageIds || [],
+    };
   }
 
   async hasDebounceData(userId: string): Promise<boolean> {
