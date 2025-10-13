@@ -106,11 +106,16 @@ client.on(
       );
 
       if (!debounceResult.shouldProcess) {
+        console.log(
+          `⏸️  Debouncing message from ${message.author.username}, will process in 4.5s`
+        );
         setTimeout(async () => {
           const hasDebounce = await debouncer.hasDebounceData(userId);
+          console.log(`⏰ Debounce timeout reached for ${userId}, hasDebounce: ${hasDebounce}`);
           if (hasDebounce) {
             const debounceData = await debouncer.getAndClearData(userId);
             if (debounceData.messages.length > 0) {
+              console.log(`📨 Adding ${debounceData.messages.length} debounced messages to queue`);
               await messageQueue.add("process-message", {
                 userId,
                 username: message.author.username,
@@ -122,10 +127,12 @@ client.on(
               });
             }
           }
-        }, 5500);
+        }, 4500);
 
         return;
       }
+
+      console.log(`✅ Processing message immediately from ${message.author.username}`);
 
       const concurrencyCount = await rateLimiter.getCurrentConcurrency();
       if (concurrencyCount >= 5) {

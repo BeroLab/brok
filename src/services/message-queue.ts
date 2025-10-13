@@ -63,6 +63,8 @@ export function setWorkerContext(context: MessageJobContext): void {
 export const messageWorker = new Worker<MessageJobData>(
   "ai-messages",
   async (job: Job<MessageJobData>) => {
+    console.log(`🚀 Processing job ${job.id} for user ${job.data.userId}`);
+
     if (!workerContext) {
       throw new Error("Worker context not initialized");
     }
@@ -121,14 +123,17 @@ export const messageWorker = new Worker<MessageJobData>(
 
       const existentFAQ = await prisma.fAQ.findMany();
 
+      console.log(`🔍 Looking up preferences for user ${userId}`);
       const userPreferences = await prisma.userPreferences.findUnique({
         where: {
           discordUserId: userId,
         },
       });
 
+      console.log(`🎯 User preferences:`, userPreferences);
       const selectedPrompt =
         userPreferences?.chatStyle === "acid" ? ACID_PROMPT : IDENTITY_PROMPT;
+      console.log(`🗣️  Using ${userPreferences?.chatStyle === "acid" ? "ACID" : "INFORMATIVE"} prompt`);
 
       const supportRoleMentions = supportRoles
         .map((roleId) => `<@&${roleId}>`)
@@ -156,12 +161,14 @@ export const messageWorker = new Worker<MessageJobData>(
         clearInterval(typingInterval);
       }
 
+      console.log(`📤 Sending response to channel ${channelId}...`);
       await api.channels.createMessage(channelId, {
         content: text,
         message_reference: {
           message_id: messageId,
         },
       });
+      console.log(`✅ Response sent successfully!`);
 
       await rateLimiter.setUserCooldown(userId);
 
