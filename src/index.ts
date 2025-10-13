@@ -106,15 +106,6 @@ client.on(
       );
 
       if (!debounceResult.shouldProcess) {
-        const feedbackMessage = await api.channels.createMessage(channelId, {
-          content: "📝 recebi! aguarda só um pouquinho que eu to juntando suas mensagens...",
-          message_reference: {
-            message_id: message.id,
-          },
-        });
-
-        await debouncer.addFeedbackMessageId(userId, feedbackMessage.id);
-
         setTimeout(async () => {
           const hasDebounce = await debouncer.hasDebounceData(userId);
           if (hasDebounce) {
@@ -127,7 +118,7 @@ client.on(
                 messageId: message.id,
                 messageContent: debounceData.messages.join("\n\n---\n\n"),
                 botMention,
-                feedbackMessageIds: debounceData.feedbackMessageIds,
+                feedbackMessageIds: [],
               });
             }
           }
