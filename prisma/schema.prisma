@@ -17,6 +17,7 @@ datasource db {
 enum ChatStyle {
   informative
   acid
+  laele
 }
 
 model FAQ {

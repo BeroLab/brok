@@ -19,7 +19,21 @@ import { debouncer } from "./services/debouncer";
 import { messageQueue, setWorkerContext } from "./services/message-queue";
 
 const prisma = new PrismaClient();
-const supportRoles = ["1427335784729673808"];
+
+const supportRoles = {
+  engineers: {
+    ids: ["1386522263708500000"],
+    description: "bugs ou problemas técnicos com a plataforma",
+  },
+  moderators: {
+    ids: ["1370538364964442122", "1394750906620313816"],
+    description: "problemas com outros participantes ou comportamento inadequado",
+  },
+  mentors: {
+    ids: ["1392531631385870427"],
+    description: "dúvidas sobre mentoria ou funcionamento do site",
+  },
+};
 
 const rest = new REST({ version: "10" }).setToken(
   process.env.DISCORD_TOKEN ?? ""
@@ -72,7 +86,6 @@ client.on(
     let messageId = message.id;
     let messageContent = message.content;
     const channelId = message.channel_id;
-    let isReplyContext = false;
 
     if (message.referenced_message) {
       if (message.referenced_message.author.bot) {
@@ -82,7 +95,6 @@ client.on(
         return;
       }
 
-      isReplyContext = true;
       userId = message.referenced_message.author.id;
       username = message.referenced_message.author.username;
       messageId = message.referenced_message.id;
@@ -310,6 +322,39 @@ client.on(
         });
       } catch (error) {
         console.error("Error setting informative mode:", error);
+        await api.interactions.reply(interaction.id, interaction.token, {
+          content: "❌ deu ruim aqui. tenta de novo depois.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+    }
+
+    if (command.data.name === "laele") {
+      try {
+        const userId =
+          interaction.member?.user.id ?? interaction.user?.id ?? "";
+
+        await prisma.userPreferences.upsert({
+          where: {
+            discordUserId: userId,
+          },
+          update: {
+            chatStyle: ChatStyle.laele,
+          },
+          create: {
+            id: new ObjectId().toString(),
+            discordUserId: userId,
+            chatStyle: ChatStyle.laele,
+          },
+        });
+
+        await api.interactions.reply(interaction.id, interaction.token, {
+          content:
+            "😎 Modo laele ativado! bora de brotheragem, só tiradas rápidas e zoeira leve. tá ligado? 🔥",
+          flags: MessageFlags.Ephemeral,
+        });
+      } catch (error) {
+        console.error("Error setting laele mode:", error);
         await api.interactions.reply(interaction.id, interaction.token, {
           content: "❌ deu ruim aqui. tenta de novo depois.",
           flags: MessageFlags.Ephemeral,

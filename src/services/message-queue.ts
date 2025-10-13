@@ -4,7 +4,7 @@ import { generateText } from "ai";
 import { rateLimiter } from "./rate-limiter";
 import { debouncer } from "./debouncer";
 import { RATE_LIMITS } from "../config/rate-limits";
-import { IDENTITY_PROMPT, ACID_PROMPT } from "../ai/prompts";
+import { IDENTITY_PROMPT, ACID_PROMPT, LAELE_PROMPT } from "../ai/prompts";
 import type { PrismaClient, ChatStyle } from "../generated/prisma";
 
 const REDIS_URL = process.env.REDIS_URL;
@@ -27,11 +27,22 @@ export interface MessageJobData {
   feedbackMessageIds: string[];
 }
 
+export interface SupportRole {
+  ids: string[];
+  description: string;
+}
+
+export interface SupportRoles {
+  engineers: SupportRole;
+  moderators: SupportRole;
+  mentors: SupportRole;
+}
+
 export interface MessageJobContext {
   api: API;
   model: unknown;
   identityPrompt: string;
-  supportRoles: string[];
+  supportRoles: SupportRoles;
   prisma: PrismaClient;
 }
 
@@ -131,17 +142,27 @@ export const messageWorker = new Worker<MessageJobData>(
       });
 
       console.log(`🎯 User preferences:`, userPreferences);
-      const selectedPrompt =
-        userPreferences?.chatStyle === "acid" ? ACID_PROMPT : IDENTITY_PROMPT;
-      console.log(
-        `🗣️  Using ${
-          userPreferences?.chatStyle === "acid" ? "ACID" : "INFORMATIVE"
-        } prompt`
-      );
 
-      const supportRoleMentions = supportRoles
-        .map((roleId) => `<@&${roleId}>`)
-        .join(" ");
+      let selectedPrompt = IDENTITY_PROMPT;
+      let promptType = "INFORMATIVE";
+
+      if (userPreferences?.chatStyle === "acid") {
+        selectedPrompt = ACID_PROMPT;
+        promptType = "ACID";
+      } else if (userPreferences?.chatStyle === "laele") {
+        selectedPrompt = LAELE_PROMPT;
+        promptType = "LAELE";
+      }
+
+      console.log(`🗣️  Using ${promptType} prompt`);
+
+      const roleCategories = {
+        engineers: supportRoles.engineers.ids.map((id) => `<@&${id}>`).join(" "),
+        moderators: supportRoles.moderators.ids
+          .map((id) => `<@&${id}>`)
+          .join(" "),
+        mentors: supportRoles.mentors.ids.map((id) => `<@&${id}>`).join(" "),
+      };
 
       const { text } = await generateText({
         model: model as any,
@@ -153,13 +174,21 @@ export const messageWorker = new Worker<MessageJobData>(
 
         O usuário te mencionou, leia as perguntas e respostas que temos salvas no banco de dados e veja se já temos uma resposta para a solicitação do usuário. Caso não tivermos, pense em uma resposta que faz sentido.
 
-        Caso o usuário faça uma pergunta específica que envolve informações sensíveis como pagamentos, regras, suporte técnico, ou qualquer assunto que requeira atenção da equipe, você DEVE incluir a seguinte linha ao final da sua resposta. Mas, é importante que você entenda quais perguntas são por ironia dos usuários, e quais perguntas realmente requerem atenção da equipe:
+        Caso o usuário faça uma pergunta que requeira atenção da equipe, você deve escolher QUAL EQUIPE mencionar baseado no tipo de problema:
 
-        "galera deem uma olhada aqui ${supportRoleMentions}"
+        CARGOS DISPONÍVEIS:
+        - Engenheiros (${roleCategories.engineers}): Para ${supportRoles.engineers.description}
+        - Moderadores (${roleCategories.moderators}): Para ${supportRoles.moderators.description}
+        - Mentores (${roleCategories.mentors}): Para ${supportRoles.mentors.description}
+
+        IMPORTANTE: Analise a pergunta e mencione APENAS o cargo apropriado. Por exemplo:
+        - Bug na plataforma? Mencione: "galera deem uma olhada aqui ${roleCategories.engineers}"
+        - Problema com outro usuário? Mencione: "galera deem uma olhada aqui ${roleCategories.moderators}"
+        - Dúvida sobre mentoria? Mencione: "galera deem uma olhada aqui ${roleCategories.mentors}"
+
+        Use seu julgamento para determinar se a pergunta realmente requer escalonamento (não escalone perguntas irônicas ou gerais que você pode responder).
 
         IMPORTANTE: Se alguém perguntar quem te criou, quem te programou, quem é seu desenvolvedor ou criador, mencione: <@875824126663749632>
-
-        Use seu julgamento para determinar se a pergunta requer escalonamento para a equipe de suporte. Sempre lembre-se que você é um bot de IA e não uma pessoa real.
         `,
       });
 
