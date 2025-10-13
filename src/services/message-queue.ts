@@ -69,7 +69,7 @@ export const messageWorker = new Worker<MessageJobData>(
       throw new Error("Worker context not initialized");
     }
 
-    const { api, model, identityPrompt, supportRoles, prisma } = workerContext;
+    const { api, model, supportRoles, prisma } = workerContext;
     const {
       userId,
       channelId,
@@ -133,7 +133,11 @@ export const messageWorker = new Worker<MessageJobData>(
       console.log(`🎯 User preferences:`, userPreferences);
       const selectedPrompt =
         userPreferences?.chatStyle === "acid" ? ACID_PROMPT : IDENTITY_PROMPT;
-      console.log(`🗣️  Using ${userPreferences?.chatStyle === "acid" ? "ACID" : "INFORMATIVE"} prompt`);
+      console.log(
+        `🗣️  Using ${
+          userPreferences?.chatStyle === "acid" ? "ACID" : "INFORMATIVE"
+        } prompt`
+      );
 
       const supportRoleMentions = supportRoles
         .map((roleId) => `<@&${roleId}>`)
@@ -149,13 +153,20 @@ export const messageWorker = new Worker<MessageJobData>(
 
         O usuário te mencionou, leia as perguntas e respostas que temos salvas no banco de dados e veja se já temos uma resposta para a solicitação do usuário. Caso não tivermos, pense em uma resposta que faz sentido.
 
-        Caso o usuário faça uma pergunta específica que envolve informações sensíveis como pagamentos, regras, suporte técnico, ou qualquer assunto que requeira atenção da equipe, você DEVE incluir a seguinte linha ao final da sua resposta:
+        Caso o usuário faça uma pergunta específica que envolve informações sensíveis como pagamentos, regras, suporte técnico, ou qualquer assunto que requeira atenção da equipe, você DEVE incluir a seguinte linha ao final da sua resposta. Mas, é importante que você entenda quais perguntas são por ironia dos usuários, e quais perguntas realmente requerem atenção da equipe:
 
         "galera deem uma olhada aqui ${supportRoleMentions}"
 
-        Use seu julgamento para determinar se a pergunta requer escalonamento para a equipe de suporte.
+        Use seu julgamento para determinar se a pergunta requer escalonamento para a equipe de suporte. Sempre lembre-se que você é um bot de IA e não uma pessoa real.
         `,
       });
+
+      const cleanedText = text
+        .replace(/<think>[\s\S]*?<\/think>/gi, "")
+        .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
+        .replace(/\(nenhuma info sensível aqui[^)]*\)/gi, "")
+        .replace(/\(resposta direta do faq[^)]*\)/gi, "")
+        .trim();
 
       if (typingInterval) {
         clearInterval(typingInterval);
@@ -163,7 +174,7 @@ export const messageWorker = new Worker<MessageJobData>(
 
       console.log(`📤 Sending response to channel ${channelId}...`);
       await api.channels.createMessage(channelId, {
-        content: text,
+        content: cleanedText,
         message_reference: {
           message_id: messageId,
         },

@@ -40,7 +40,7 @@ const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY ?? "",
 });
 
-const model = openrouter("google/gemini-2.5-flash");
+const model = openrouter("qwen/qwen3-235b-a22b:free");
 
 let botId: string;
 
