@@ -4,16 +4,27 @@
   "type": "module",
   "private": true,
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/node": "^24.7.2",
+    "prisma": "^6.17.1",
+    "tsx": "^4.20.6"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "register-commands": "bun run src/register-commands.ts"
   },
   "dependencies": {
     "@discordjs/core": "^2.3.0",
     "@discordjs/rest": "^2.6.0",
     "@discordjs/ws": "^2.0.3",
     "@openrouter/ai-sdk-provider": "^1.2.0",
-    "ai": "^5.0.68"
+    "@prisma/client": "^6.17.1",
+    "ai": "^5.0.68",
+    "bson": "^6.10.4",
+    "discord-api-types": "^0.38.30"
   }
 }
