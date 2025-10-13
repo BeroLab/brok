@@ -24,6 +24,14 @@ const commands = [
       },
     ],
   },
+  {
+    name: "acido",
+    description: "Ativa o modo ácido do bot (humor pesado tipo brok do Twitter)",
+  },
+  {
+    name: "informativo",
+    description: "Ativa o modo informativo do bot (padrão, educado e útil)",
+  },
 ];
 
 async function registerCommands() {

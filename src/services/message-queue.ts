@@ -4,6 +4,8 @@ import { generateText } from "ai";
 import { rateLimiter } from "./rate-limiter";
 import { debouncer } from "./debouncer";
 import { RATE_LIMITS } from "../config/rate-limits";
+import { IDENTITY_PROMPT, ACID_PROMPT } from "../ai/prompts";
+import type { PrismaClient, ChatStyle } from "../generated/prisma";
 
 const REDIS_URL = process.env.REDIS_URL;
 
@@ -30,7 +32,7 @@ export interface MessageJobContext {
   model: unknown;
   identityPrompt: string;
   supportRoles: string[];
-  prisma: unknown;
+  prisma: PrismaClient;
 }
 
 export const messageQueue = new Queue<MessageJobData>("ai-messages", {
@@ -117,7 +119,16 @@ export const messageWorker = new Worker<MessageJobData>(
         }
       }, 8000);
 
-      const existentFAQ = await (prisma as any).fAQ.findMany();
+      const existentFAQ = await prisma.fAQ.findMany();
+
+      const userPreferences = await prisma.userPreferences.findUnique({
+        where: {
+          discordUserId: userId,
+        },
+      });
+
+      const selectedPrompt =
+        userPreferences?.chatStyle === "acid" ? ACID_PROMPT : IDENTITY_PROMPT;
 
       const supportRoleMentions = supportRoles
         .map((roleId) => `<@&${roleId}>`)
@@ -126,7 +137,7 @@ export const messageWorker = new Worker<MessageJobData>(
       const { text } = await generateText({
         model: model as any,
         prompt: `
-        ${identityPrompt}
+        ${selectedPrompt}
         ${combinedMessage}
 
         FAQ disponíveis: ${JSON.stringify(existentFAQ)}

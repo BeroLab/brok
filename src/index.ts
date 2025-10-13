@@ -12,7 +12,7 @@ import {
 } from "@discordjs/core";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { IDENTITY_PROMPT } from "./ai/prompts";
-import { PrismaClient } from "./generated/prisma";
+import { PrismaClient, ChatStyle } from "./generated/prisma";
 import { ObjectId } from "bson";
 import { rateLimiter } from "./services/rate-limiter";
 import { debouncer } from "./services/debouncer";
@@ -211,6 +211,72 @@ client.on(
         console.error("Error creating FAQ:", error);
         await api.interactions.reply(interaction.id, interaction.token, {
           content: "❌ Erro ao registrar o FAQ. Tente novamente mais tarde.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+    }
+
+    if (command.data.name === "acido") {
+      try {
+        const userId =
+          interaction.member?.user.id ?? interaction.user?.id ?? "";
+
+        await prisma.userPreferences.upsert({
+          where: {
+            discordUserId: userId,
+          },
+          update: {
+            chatStyle: ChatStyle.acid,
+          },
+          create: {
+            id: new ObjectId().toString(),
+            discordUserId: userId,
+            chatStyle: ChatStyle.acid,
+          },
+        });
+
+        await api.interactions.reply(interaction.id, interaction.token, {
+          content:
+            "🔥 Modo ácido ativado! agora eu vou ser sem filtro, com zoeira pesada e verdades desconfortáveis. bora! 💀",
+          flags: MessageFlags.Ephemeral,
+        });
+      } catch (error) {
+        console.error("Error setting acid mode:", error);
+        await api.interactions.reply(interaction.id, interaction.token, {
+          content: "❌ deu ruim aqui. tenta de novo depois.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+    }
+
+    if (command.data.name === "informativo") {
+      try {
+        const userId =
+          interaction.member?.user.id ?? interaction.user?.id ?? "";
+
+        await prisma.userPreferences.upsert({
+          where: {
+            discordUserId: userId,
+          },
+          update: {
+            chatStyle: ChatStyle.informative,
+          },
+          create: {
+            id: new ObjectId().toString(),
+            discordUserId: userId,
+            chatStyle: ChatStyle.informative,
+          },
+        });
+
+        await api.interactions.reply(interaction.id, interaction.token, {
+          content:
+            "✅ Modo informativo ativado! agora eu volto a ser educado e útil. tmj! 🤙",
+          flags: MessageFlags.Ephemeral,
+        });
+      } catch (error) {
+        console.error("Error setting informative mode:", error);
+        await api.interactions.reply(interaction.id, interaction.token, {
+          content: "❌ deu ruim aqui. tenta de novo depois.",
           flags: MessageFlags.Ephemeral,
         });
       }

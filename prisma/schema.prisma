@@ -30,7 +30,7 @@ model FAQ {
 
 model UserPreferences {
   id            String    @id @map("_id") @db.ObjectId
-  discordUserId String    @map("discord_user_id") // discord user id
+  discordUserId String    @unique @map("discord_user_id") // discord user id
   chatStyle     ChatStyle @map("chat_style")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
