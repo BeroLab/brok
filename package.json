@@ -13,6 +13,7 @@
     "@discordjs/core": "^2.3.0",
     "@discordjs/rest": "^2.6.0",
     "@discordjs/ws": "^2.0.3",
+    "@openrouter/ai-sdk-provider": "^1.2.0",
     "ai": "^5.0.68"
   }
 }

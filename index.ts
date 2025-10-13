@@ -5,6 +5,8 @@ import {
   GatewayIntentBits,
   Client,
 } from "@discordjs/core";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { generateText } from "ai";
 
 const rest = new REST({ version: "10" }).setToken(
   process.env.DISCORD_TOKEN ?? ""
@@ -20,6 +22,12 @@ const gateway = new WebSocketManager({
 });
 
 const client = new Client({ rest, gateway });
+
+const openrouter = createOpenRouter({
+  apiKey: process.env.OPENROUTER_API_KEY ?? "",
+});
+
+const model = openrouter("google/gemini-2.5-flash");
 
 let botId: string;
 
@@ -38,12 +46,34 @@ client.on(
 
     console.log(`Bot mentioned by ${message.author.username}: ${message.content}`);
 
-    await api.channels.createMessage(message.channel_id, {
-      content: "Pong!",
-      message_reference: {
-        message_id: message.id,
-      },
-    });
+    try {
+      const thinkingMessage = await api.channels.createMessage(message.channel_id, {
+        content: "🤔 perai to pensando...",
+        message_reference: {
+          message_id: message.id,
+        },
+      });
+
+      const userMessage = message.content.replace(botMention, "").trim();
+
+      const { text } = await generateText({
+        model,
+        prompt: userMessage,
+      });
+
+      await api.channels.editMessage(message.channel_id, thinkingMessage.id, {
+        content: text,
+      });
+    } catch (error) {
+      console.error("Error generating AI response:", error);
+      await api.channels.createMessage(message.channel_id, {
+        content:
+          "❌ po deu ruim aqui. deu algum erro. me marca de novo depois, tmj 🤙",
+        message_reference: {
+          message_id: message.id,
+        },
+      });
+    }
   }
 );
 
