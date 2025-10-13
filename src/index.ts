@@ -11,10 +11,12 @@ import {
   type APIApplicationCommandInteractionDataStringOption,
 } from "@discordjs/core";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { generateText } from "ai";
 import { IDENTITY_PROMPT } from "./ai/prompts";
 import { PrismaClient } from "./generated/prisma";
 import { ObjectId } from "bson";
+import { rateLimiter } from "./services/rate-limiter";
+import { debouncer } from "./services/debouncer";
+import { messageQueue, setWorkerContext } from "./services/message-queue";
 
 const prisma = new PrismaClient();
 const supportRoles = ["1427335784729673808"];
@@ -45,6 +47,16 @@ let botId: string;
 client.once(GatewayDispatchEvents.Ready, ({ data }) => {
   botId = data.user.id;
   console.log(`Ready! Logged in as ${data.user.username}`);
+
+  setWorkerContext({
+    api: client.api,
+    model,
+    identityPrompt: IDENTITY_PROMPT,
+    supportRoles,
+    prisma,
+  });
+
+  console.log("✅ Worker context initialized");
 });
 
 client.on(
@@ -55,53 +67,95 @@ client.on(
     const botMention = `<@${botId}>`;
     if (!message.content.includes(botMention)) return;
 
+    const userId = message.author.id;
+    const channelId = message.channel_id;
+    const messageContent = message.content;
+
     console.log(
       `Bot mentioned by ${message.author.username}: ${message.content}`
     );
 
     try {
-      const thinkingMessage = await api.channels.createMessage(
-        message.channel_id,
-        {
-          content: "🤔 perai to pensando...",
+      const isChannelBusy = await rateLimiter.isChannelProcessing(channelId);
+      if (isChannelBusy) {
+        await api.channels.createMessage(channelId, {
+          content:
+            "⚠️ já to respondendo outra mensagem aqui, peraí que logo respondo você!",
           message_reference: {
             message_id: message.id,
           },
-        }
+        });
+        return;
+      }
+
+      const cooldownCheck = await rateLimiter.canUserSendMessage(userId);
+      if (!cooldownCheck.allowed) {
+        await api.channels.createMessage(channelId, {
+          content: `⏳ calma aí mano, espera mais ${cooldownCheck.remainingSeconds} segundos antes de me marcar de novo!`,
+          message_reference: {
+            message_id: message.id,
+          },
+        });
+        return;
+      }
+
+      const debounceResult = await debouncer.addMessage(
+        userId,
+        messageContent,
+        channelId
       );
 
-      const userMessage = message.content.replace(botMention, "").trim();
+      if (!debounceResult.shouldProcess) {
+        await api.channels.createMessage(channelId, {
+          content: "📝 recebi! aguarda só um pouquinho que eu to juntando suas mensagens...",
+          message_reference: {
+            message_id: message.id,
+          },
+        });
 
-      const existentFAQ = await prisma.fAQ.findMany();
+        setTimeout(async () => {
+          const hasDebounce = await debouncer.hasDebounceData(userId);
+          if (hasDebounce) {
+            const messages = await debouncer.getAndClearMessages(userId);
+            if (messages.length > 0) {
+              await messageQueue.add("process-message", {
+                userId,
+                username: message.author.username,
+                channelId,
+                messageId: message.id,
+                messageContent: messages.join("\n\n---\n\n"),
+                botMention,
+              });
+            }
+          }
+        }, 5500);
 
-      const supportRoleMentions = supportRoles
-        .map((roleId) => `<@&${roleId}>`)
-        .join(" ");
+        return;
+      }
 
-      const { text } = await generateText({
-        model,
-        prompt: `
-        ${IDENTITY_PROMPT}
-        ${userMessage}
+      const concurrencyCount = await rateLimiter.getCurrentConcurrency();
+      if (concurrencyCount >= 5) {
+        await api.channels.createMessage(channelId, {
+          content:
+            "🚦 to processando muita coisa agora, aguarda um pouquinho e me marca de novo!",
+          message_reference: {
+            message_id: message.id,
+          },
+        });
+        return;
+      }
 
-        FAQ disponíveis: ${JSON.stringify(existentFAQ)}
-
-        O usuário te mencionou, leia as perguntas e respostas que temos salvas no banco de dados e veja se já temos uma resposta para a solicitação do usuário. Caso não tivermos, pense em uma resposta que faz sentido.
-
-        Caso o usuário faça uma pergunta específica que envolve informações sensíveis como pagamentos, regras, suporte técnico, ou qualquer assunto que requeira atenção da equipe, você DEVE incluir a seguinte linha ao final da sua resposta:
-
-        "galera deem uma olhada aqui ${supportRoleMentions}"
-
-        Use seu julgamento para determinar se a pergunta requer escalonamento para a equipe de suporte.
-        `,
-      });
-
-      await api.channels.editMessage(message.channel_id, thinkingMessage.id, {
-        content: text,
+      await messageQueue.add("process-message", {
+        userId,
+        username: message.author.username,
+        channelId,
+        messageId: message.id,
+        messageContent,
+        botMention,
       });
     } catch (error) {
-      console.error("Error generating AI response:", error);
-      await api.channels.createMessage(message.channel_id, {
+      console.error("Error handling message:", error);
+      await api.channels.createMessage(channelId, {
         content:
           "❌ po deu ruim aqui. deu algum erro. me marca de novo depois, tmj 🤙",
         message_reference: {
