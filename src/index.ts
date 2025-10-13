@@ -67,13 +67,35 @@ client.on(
     const botMention = `<@${botId}>`;
     if (!message.content.includes(botMention)) return;
 
-    const userId = message.author.id;
+    let userId = message.author.id;
+    let username = message.author.username;
+    let messageId = message.id;
+    let messageContent = message.content;
     const channelId = message.channel_id;
-    const messageContent = message.content;
+    let isReplyContext = false;
 
-    console.log(
-      `Bot mentioned by ${message.author.username}: ${message.content}`
-    );
+    if (message.referenced_message) {
+      if (message.referenced_message.author.bot) {
+        console.log(
+          `⚠️  Ignoring reply to bot message from ${message.author.username}`
+        );
+        return;
+      }
+
+      isReplyContext = true;
+      userId = message.referenced_message.author.id;
+      username = message.referenced_message.author.username;
+      messageId = message.referenced_message.id;
+      messageContent = message.referenced_message.content;
+
+      console.log(
+        `📨 Reply context detected! ${message.author.username} mentioned bot in reply to ${username}'s message: "${messageContent}"`
+      );
+    } else {
+      console.log(
+        `💬 Direct mention by ${message.author.username}: ${message.content}`
+      );
+    }
 
     try {
       const isChannelBusy = await rateLimiter.isChannelProcessing(channelId);
@@ -107,20 +129,24 @@ client.on(
 
       if (!debounceResult.shouldProcess) {
         console.log(
-          `⏸️  Debouncing message from ${message.author.username}, will process in 4.5s`
+          `⏸️  Debouncing message from ${username}, will process in 4.5s`
         );
         setTimeout(async () => {
           const hasDebounce = await debouncer.hasDebounceData(userId);
-          console.log(`⏰ Debounce timeout reached for ${userId}, hasDebounce: ${hasDebounce}`);
+          console.log(
+            `⏰ Debounce timeout reached for ${userId}, hasDebounce: ${hasDebounce}`
+          );
           if (hasDebounce) {
             const debounceData = await debouncer.getAndClearData(userId);
             if (debounceData.messages.length > 0) {
-              console.log(`📨 Adding ${debounceData.messages.length} debounced messages to queue`);
+              console.log(
+                `📨 Adding ${debounceData.messages.length} debounced messages to queue`
+              );
               await messageQueue.add("process-message", {
                 userId,
-                username: message.author.username,
+                username,
                 channelId,
-                messageId: message.id,
+                messageId,
                 messageContent: debounceData.messages.join("\n\n---\n\n"),
                 botMention,
                 feedbackMessageIds: [],
@@ -132,7 +158,9 @@ client.on(
         return;
       }
 
-      console.log(`✅ Processing message immediately from ${message.author.username}`);
+      console.log(
+        `✅ Processing message immediately from ${username}`
+      );
 
       const concurrencyCount = await rateLimiter.getCurrentConcurrency();
       if (concurrencyCount >= 5) {
@@ -148,9 +176,9 @@ client.on(
 
       await messageQueue.add("process-message", {
         userId,
-        username: message.author.username,
+        username,
         channelId,
-        messageId: message.id,
+        messageId,
         messageContent,
         botMention,
         feedbackMessageIds: [],

@@ -157,6 +157,8 @@ export const messageWorker = new Worker<MessageJobData>(
 
         "galera deem uma olhada aqui ${supportRoleMentions}"
 
+        IMPORTANTE: Se alguém perguntar quem te criou, quem te programou, quem é seu desenvolvedor ou criador, mencione: <@875824126663749632>
+
         Use seu julgamento para determinar se a pergunta requer escalonamento para a equipe de suporte. Sempre lembre-se que você é um bot de IA e não uma pessoa real.
         `,
       });
@@ -166,6 +168,7 @@ export const messageWorker = new Worker<MessageJobData>(
         .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
         .replace(/\(nenhuma info sensível aqui[^)]*\)/gi, "")
         .replace(/\(resposta direta do faq[^)]*\)/gi, "")
+        .replace(/\[nenhuma ação necessária[^\]]*\]/gi, "")
         .trim();
 
       if (typingInterval) {
