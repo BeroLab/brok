@@ -217,6 +217,26 @@ client.on(
 
     if (command.data.name === "registrar-faq") {
       try {
+        const userRoles = interaction.member?.roles ?? [];
+        const allSupportRoleIds = [
+          ...supportRoles.engineers.ids,
+          ...supportRoles.moderators.ids,
+          ...supportRoles.mentors.ids,
+        ];
+
+        const hasPermission = userRoles.some((roleId) =>
+          allSupportRoleIds.includes(roleId)
+        );
+
+        if (!hasPermission) {
+          await api.interactions.reply(interaction.id, interaction.token, {
+            content:
+              "❌ Você não tem permissão para registrar perguntas no FAQ. Este comando é restrito à equipe de suporte.",
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
         const options = command.data.options ?? [];
         const pergunta = options.find(
           (opt): opt is APIApplicationCommandInteractionDataStringOption =>

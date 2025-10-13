@@ -32,6 +32,10 @@ const commands = [
     name: "informativo",
     description: "Ativa o modo informativo do bot (padrão, educado e útil)",
   },
+  {
+    name: "laele",
+    description: "Ativa o modo laele do bot (brotheragem, tiradas rápidas e zoeira leve)",
+  },
 ];
 
 async function registerCommands() {
