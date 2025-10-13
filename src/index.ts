@@ -54,7 +54,7 @@ const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY ?? "",
 });
 
-const model = openrouter("meta-llama/llama-3.3-70b-instruct:free");
+const model = openrouter("google/gemini-2.0-flash-001");
 
 let botId: string;
 
