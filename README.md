@@ -1,15 +1,8 @@
-# brok
+# Desenvolvimento do brok
 
-To install dependencies:
-
-```bash
-bun install
-```
-
-To run:
-
-```bash
-bun run index.ts
-```
-
-This project was created using `bun init` in bun v1.2.7. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
+[x] Configurar o bot do discord
+[x] Adicionar o bot do discord a um servidor de testes
+[x] Instalar lib do discord e enviar primeira mensagem
+[ ] Adicionar IA no bot
+[ ] Adicionar um RAG básico no bot
+[ ] Adicionar stemming e proteção contra prompt injection (se der tempo)
