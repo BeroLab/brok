@@ -136,7 +136,8 @@ client.on(
       const debounceResult = await debouncer.addMessage(
         userId,
         messageContent,
-        channelId
+        channelId,
+        message.guild_id ?? null
       );
 
       if (!debounceResult.shouldProcess) {
@@ -162,6 +163,7 @@ client.on(
                 messageContent: debounceData.messages.join("\n\n---\n\n"),
                 botMention,
                 feedbackMessageIds: [],
+                guildId: debounceData.guildId ?? null,
               });
             }
           }
@@ -194,6 +196,7 @@ client.on(
         messageContent,
         botMention,
         feedbackMessageIds: [],
+        guildId: message.guild_id ?? null,
       });
     } catch (error) {
       console.error("Error handling message:", error);

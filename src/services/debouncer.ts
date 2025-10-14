@@ -6,13 +6,15 @@ interface DebounceData {
   channelId: string;
   timestamp: number;
   feedbackMessageIds: string[];
+  guildId: string | null;
 }
 
 export class Debouncer {
   async addMessage(
     userId: string,
     message: string,
-    channelId: string
+    channelId: string,
+    guildId: string | null = null
   ): Promise<{
     shouldProcess: boolean;
     messages?: string[];
@@ -54,6 +56,7 @@ export class Debouncer {
       channelId,
       timestamp: now,
       feedbackMessageIds: [],
+      guildId,
     };
 
     await redis.setex(
@@ -102,12 +105,12 @@ export class Debouncer {
 
   async getAndClearData(
     userId: string
-  ): Promise<{ messages: string[]; feedbackMessageIds: string[] }> {
+  ): Promise<{ messages: string[]; feedbackMessageIds: string[]; guildId: string | null }> {
     const key = REDIS_KEYS.debounce(userId);
     const existingData = await redis.get(key);
 
     if (!existingData) {
-      return { messages: [], feedbackMessageIds: [] };
+      return { messages: [], feedbackMessageIds: [], guildId: null };
     }
 
     const data: DebounceData = JSON.parse(existingData);
@@ -116,6 +119,7 @@ export class Debouncer {
     return {
       messages: data.messages,
       feedbackMessageIds: data.feedbackMessageIds || [],
+      guildId: data.guildId ?? null,
     };
   }
 

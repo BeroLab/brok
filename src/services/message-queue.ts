@@ -1,5 +1,6 @@
 import { Queue, Worker, Job } from "bullmq";
 import type { API } from "@discordjs/core";
+import type { RawFile } from "@discordjs/rest";
 import { generateText } from "ai";
 import { rateLimiter } from "./rate-limiter";
 import { debouncer } from "./debouncer";
@@ -9,6 +10,8 @@ import type { PrismaClient, ChatStyle } from "../generated/prisma";
 import { detectPromptInjection } from "../security/prompt-injection-detector";
 import { sanitizeInput } from "../security/input-sanitizer";
 import { logInjectionAttempt, getUserInjectionAttemptCount } from "../security/security-logger";
+import { EmojiService } from "./emoji-service";
+import { CodeSnippetService } from "./code-snippet-service";
 
 const REDIS_URL = process.env.REDIS_URL;
 
@@ -28,6 +31,7 @@ export interface MessageJobData {
   messageContent: string;
   botMention: string;
   feedbackMessageIds: string[];
+  guildId: string | null;
 }
 
 export interface SupportRole {
@@ -91,6 +95,7 @@ export const messageWorker = new Worker<MessageJobData>(
       messageContent,
       botMention,
       feedbackMessageIds,
+      guildId,
     } = job.data;
 
     let slotAcquired = false;
@@ -200,6 +205,18 @@ export const messageWorker = new Worker<MessageJobData>(
 
       console.log(`🗣️  Using ${promptType} prompt`);
 
+      const emojiService = new EmojiService(api);
+      let emojiList = "";
+
+      if (guildId) {
+        const guildEmojis = await emojiService.getGuildEmojis(guildId);
+        emojiList = emojiService.formatEmojiListForPrompt(guildEmojis);
+        console.log(`🎨 Found ${guildEmojis.length} custom emojis for guild ${guildId}`);
+      } else {
+        emojiList = "No custom emojis available (DM or no guild).";
+        console.log(`🎨 No guild context - skipping emoji fetch`);
+      }
+
       const roleCategories = {
         engineers: supportRoles.engineers.ids.map((id) => `<@&${id}>`).join(" "),
         moderators: supportRoles.moderators.ids
@@ -229,6 +246,14 @@ export const messageWorker = new Worker<MessageJobData>(
         ${JSON.stringify(existentFAQ)}
         </faq_database>
 
+        <custom_emojis>
+        ${emojiList}
+        </custom_emojis>
+
+        IMPORTANTE: Você pode usar os emojis personalizados listados acima para complementar suas mensagens.
+        Use o formato exato fornecido (ex: <:nome:id>). Escolha emojis baseado em seus nomes e no contexto da conversa.
+        Não use emojis que não estão na lista. Use com moderação - 1-2 emojis por mensagem no máximo.
+
         O usuário te mencionou. Leia as perguntas e respostas do FAQ e veja se há resposta para a solicitação. Caso não haja, pense em uma resposta apropriada.
 
         Caso o usuário faça uma pergunta que requeira atenção da equipe, escolha QUAL EQUIPE mencionar:
@@ -254,16 +279,35 @@ export const messageWorker = new Worker<MessageJobData>(
         .replace(/\[nenhuma ação necessária[^\]]*\]/gi, "")
         .trim();
 
+      const codeSnippetService = new CodeSnippetService();
+      const { cleanedText: finalText, snippetImages } =
+        await codeSnippetService.processCodeBlocks(cleanedText);
+
       if (typingInterval) {
         clearInterval(typingInterval);
       }
 
       console.log(`📤 Sending response to channel ${channelId}...`);
+
+      const files: RawFile[] | undefined =
+        snippetImages.length > 0
+          ? snippetImages.map((img) => ({
+              name: img.filename,
+              data: img.buffer,
+              contentType: "image/png",
+            }))
+          : undefined;
+
+      if (files) {
+        console.log(`📸 Sending ${snippetImages.length} code snippet image(s)`);
+      }
+
       await api.channels.createMessage(channelId, {
-        content: cleanedText,
+        content: finalText,
         message_reference: {
           message_id: messageId,
         },
+        files,
       });
       console.log(`✅ Response sent successfully!`);
 
