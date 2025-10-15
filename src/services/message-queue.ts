@@ -234,6 +234,11 @@ export const messageWorker = new Worker<MessageJobData>(
       const webSearchTool = createWebSearchTool();
       const context7SearchTool = createContext7SearchTool();
 
+      console.log(`🔧 Tool availability check:`);
+      console.log(`  - internet_search: ${webSearchTool ? '✅ AVAILABLE' : '❌ DISABLED (TAVILY_API_KEY not set)'}`);
+      console.log(`  - search_docs: ✅ AVAILABLE`);
+      console.log(`  - generate_code_snippet: ✅ AVAILABLE`);
+
       const tools: Record<string, unknown> = {
         generate_code_snippet: tool({
             description:
@@ -300,6 +305,9 @@ export const messageWorker = new Worker<MessageJobData>(
       }
 
       tools.search_docs = context7SearchTool;
+
+      const availableTools = Object.keys(tools).join(', ');
+      console.log(`🛠️  Loaded tools for generation: ${availableTools}`);
 
       const { text } = await generateText({
         model: model as any,

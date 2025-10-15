@@ -104,20 +104,20 @@ async function getLibraryDocs(
 export function createContext7SearchTool() {
   return tool({
     description:
-      "Search for up-to-date documentation and code examples for programming libraries and frameworks. Use this when the user asks about how to use a specific library, framework, API, or programming tool. Examples: 'How to use React hooks?', 'NextJS routing examples', 'Prisma query syntax'.",
+      "OBRIGATÓRIO: Use esta tool quando o usuário perguntar 'como usar', 'exemplo de', 'sintaxe', 'como funciona', 'tutorial' sobre bibliotecas, frameworks ou APIs de programação. Exemplos: 'como usar React hooks?', 'exemplo de roteamento no Next.js', 'sintaxe de query do Prisma', 'como autenticar com NextAuth', 'tutorial de useState'",
     parameters: z.object({
       libraryName: z
         .string()
         .min(1)
         .max(100)
         .describe(
-          "The name of the library or framework to search documentation for (e.g., 'react', 'next.js', 'prisma', 'typescript')"
+          "Nome da biblioteca ou framework para buscar documentação. Exemplos: 'react', 'next.js', 'prisma', 'typescript', 'tailwind'"
         ),
       topic: z
         .string()
         .optional()
         .describe(
-          "Specific topic or feature to focus on (e.g., 'hooks', 'routing', 'authentication')"
+          "Tópico ou feature específica para focar. Exemplos: 'hooks', 'routing', 'authentication', 'api routes'"
         ),
     }),
     execute: async ({ libraryName, topic }) => {

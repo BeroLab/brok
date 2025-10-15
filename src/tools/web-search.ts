@@ -101,14 +101,14 @@ export function createWebSearchTool() {
 
   return tool({
     description:
-      "Search the web for up-to-date information about programming, software development, and technology. Use this when the user asks about current events, latest updates, recent news, or real-time information related to programming and technology.",
+      "OBRIGATÓRIO: Use esta tool quando o usuário perguntar sobre 'novidades', 'o que há de novo', 'últimas atualizações', 'lançamentos recentes', 'notícias' sobre tecnologia e programação. Exemplos: 'o que há de novo no Next.js?', 'novidades do React 19', 'últimas features do TypeScript', 'o que aconteceu com o Bun recentemente?'",
     parameters: z.object({
       query: z
         .string()
         .min(1)
         .max(100)
         .describe(
-          "The search query. Must be related to programming, software development, or technology."
+          "A query de busca sobre programação ou tecnologia. Exemplo: 'novidades next.js 15', 'atualizações react 19'"
         ),
     }),
     execute: async ({ query }) => {
