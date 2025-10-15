@@ -1,7 +1,8 @@
 import { Queue, Worker, Job } from "bullmq";
 import type { API } from "@discordjs/core";
 import type { RawFile } from "@discordjs/rest";
-import { generateText } from "ai";
+import { generateText, tool } from "ai";
+import { z } from "zod";
 import { rateLimiter } from "./rate-limiter";
 import { debouncer } from "./debouncer";
 import { RATE_LIMITS } from "../config/rate-limits";
@@ -11,7 +12,7 @@ import { detectPromptInjection } from "../security/prompt-injection-detector";
 import { sanitizeInput } from "../security/input-sanitizer";
 import { logInjectionAttempt, getUserInjectionAttemptCount } from "../security/security-logger";
 import { EmojiService } from "./emoji-service";
-import { CodeSnippetService } from "./code-snippet-service";
+import { CodeSnippetService, type CodeSnippetImage } from "./code-snippet-service";
 
 const REDIS_URL = process.env.REDIS_URL;
 
@@ -225,8 +226,57 @@ export const messageWorker = new Worker<MessageJobData>(
         mentors: supportRoles.mentors.ids.map((id) => `<@&${id}>`).join(" "),
       };
 
+      const snippetImages: CodeSnippetImage[] = [];
+
       const { text } = await generateText({
         model: model as any,
+        tools: {
+          generate_code_snippet: tool({
+            description:
+              "Generate a beautiful code snippet image. Use this when the user asks to see code examples. DO NOT write code as text - ALWAYS use this tool instead.",
+            parameters: z.object({
+              code: z
+                .string()
+                .describe("The complete, functional code to display"),
+              language: z
+                .string()
+                .describe(
+                  "Programming language (e.g., javascript, typescript, python, go, rust, etc.)"
+                ),
+              description: z
+                .string()
+                .optional()
+                .describe("Brief description of what the code does"),
+            }),
+            execute: async ({ code, language, description }) => {
+              const codeSnippetService = new CodeSnippetService();
+              try {
+                const buffer = await codeSnippetService.generateSnippetImage(
+                  code,
+                  language
+                );
+                snippetImages.push({
+                  filename: `snippet-${snippetImages.length + 1}.png`,
+                  buffer,
+                  language,
+                });
+                console.log(
+                  `✅ Generated code snippet image for ${language}${description ? `: ${description}` : ""}`
+                );
+                return {
+                  success: true,
+                  message: `Code snippet image generated successfully${description ? ` for: ${description}` : ""}`,
+                };
+              } catch (error) {
+                console.error("Failed to generate code snippet image:", error);
+                return {
+                  success: false,
+                  message: "Failed to generate code snippet image",
+                };
+              }
+            },
+          }),
+        },
         prompt: `
         ${selectedPrompt}
 
@@ -271,17 +321,13 @@ export const messageWorker = new Worker<MessageJobData>(
         `,
       });
 
-      const cleanedText = text
+      const finalText = text
         .replace(/<think>[\s\S]*?<\/think>/gi, "")
         .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
         .replace(/\(nenhuma info sensível aqui[^)]*\)/gi, "")
         .replace(/\(resposta direta do faq[^)]*\)/gi, "")
         .replace(/\[nenhuma ação necessária[^\]]*\]/gi, "")
         .trim();
-
-      const codeSnippetService = new CodeSnippetService();
-      const { cleanedText: finalText, snippetImages } =
-        await codeSnippetService.processCodeBlocks(cleanedText);
 
       if (typingInterval) {
         clearInterval(typingInterval);
