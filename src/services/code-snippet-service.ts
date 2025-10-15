@@ -33,27 +33,35 @@ export class CodeSnippetService {
     code: string,
     language: string
   ): Promise<Buffer> {
+    console.log(`🎨 Generating snippet image - Language: ${language}, Code length: ${code?.length || 0} chars`);
+
+    if (!code || code.trim().length === 0) {
+      throw new Error("Code parameter is empty or undefined");
+    }
+
     try {
+      const payload = {
+        code,
+        language,
+        theme: "dracula",
+        backgroundColor: "#282a36",
+        paddingVertical: "56px",
+        paddingHorizontal: "56px",
+        dropShadow: true,
+        windowControls: true,
+        exportSize: "2x",
+        fontFamily: "Fira Code",
+        fontSize: "14px",
+      };
+
+      console.log(`📤 Sending request to Carbonara API:`, JSON.stringify(payload, null, 2));
+
       const response = await fetch(this.CARBONARA_API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          code,
-          language,
-          theme: "dracula",
-          backgroundColor: "#282a36",
-          paddingVertical: "56px",
-          paddingHorizontal: "56px",
-          dropShadow: true,
-          dropShadowBlurRadius: "68px",
-          dropShadowOffsetY: "20px",
-          windowControls: true,
-          exportSize: "2x",
-          fontFamily: "Fira Code",
-          fontSize: "14px",
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {

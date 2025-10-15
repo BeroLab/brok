@@ -13,6 +13,7 @@ import { sanitizeInput } from "../security/input-sanitizer";
 import { logInjectionAttempt, getUserInjectionAttemptCount } from "../security/security-logger";
 import { EmojiService } from "./emoji-service";
 import { CodeSnippetService, type CodeSnippetImage } from "./code-snippet-service";
+import { redis } from "../config/redis";
 
 const REDIS_URL = process.env.REDIS_URL;
 
@@ -249,6 +250,19 @@ export const messageWorker = new Worker<MessageJobData>(
                 .describe("Brief description of what the code does"),
             }),
             execute: async ({ code, language, description }) => {
+              console.log(`🔧 Tool called - generate_code_snippet`);
+              console.log(`  Language: ${language}`);
+              console.log(`  Code length: ${code?.length || 0} chars`);
+              console.log(`  Description: ${description || 'none'}`);
+
+              if (!code || code.trim().length === 0) {
+                console.error("❌ Tool received empty code parameter!");
+                return {
+                  success: false,
+                  message: "Cannot generate image: code parameter is empty",
+                };
+              }
+
               const codeSnippetService = new CodeSnippetService();
               try {
                 const buffer = await codeSnippetService.generateSnippetImage(
@@ -355,6 +369,8 @@ export const messageWorker = new Worker<MessageJobData>(
 
       if (files) {
         console.log(`📸 Sending ${snippetImages.length} code snippet image(s) inline`);
+      } else if (finalText) {
+        console.log(`📝 Sending text-only response (no images generated)`);
       }
 
       if (!finalText && !files) {
@@ -403,7 +419,16 @@ messageWorker.on("failed", async (job, err) => {
   console.error(`❌ Job ${job?.id} failed after all retries:`, err);
 
   if (job && workerContext) {
+    const errorNotificationKey = `error_notification_sent:${job.id}`;
+
     try {
+      const alreadySent = await redis.get(errorNotificationKey);
+
+      if (alreadySent) {
+        console.log(`⏭️  Error notification already sent for job ${job.id}, skipping`);
+        return;
+      }
+
       const { channelId, messageId } = job.data;
       const { api } = workerContext;
 
@@ -414,6 +439,9 @@ messageWorker.on("failed", async (job, err) => {
           message_id: messageId,
         },
       });
+
+      await redis.setex(errorNotificationKey, 300, "1");
+      console.log(`✅ Error notification sent for job ${job.id}`);
     } catch (notifyError) {
       console.error("Failed to send error notification:", notifyError);
     }
