@@ -14,6 +14,8 @@ import { logInjectionAttempt, getUserInjectionAttemptCount } from "../security/s
 import { EmojiService } from "./emoji-service";
 import { CodeSnippetService, type CodeSnippetImage } from "./code-snippet-service";
 import { redis } from "../config/redis";
+import { createWebSearchTool } from "../tools/web-search";
+import { createContext7SearchTool } from "../tools/context7-search";
 
 const REDIS_URL = process.env.REDIS_URL;
 
@@ -229,10 +231,11 @@ export const messageWorker = new Worker<MessageJobData>(
 
       const snippetImages: CodeSnippetImage[] = [];
 
-      const { text } = await generateText({
-        model: model as any,
-        tools: {
-          generate_code_snippet: tool({
+      const webSearchTool = createWebSearchTool();
+      const context7SearchTool = createContext7SearchTool();
+
+      const tools: Record<string, unknown> = {
+        generate_code_snippet: tool({
             description:
               "Generate a beautiful code snippet image. Use this when the user asks to see code examples. DO NOT write code as text - ALWAYS use this tool instead.",
             parameters: z.object({
@@ -290,7 +293,17 @@ export const messageWorker = new Worker<MessageJobData>(
               }
             },
           }),
-        },
+      };
+
+      if (webSearchTool) {
+        tools.internet_search = webSearchTool;
+      }
+
+      tools.search_docs = context7SearchTool;
+
+      const { text } = await generateText({
+        model: model as any,
+        tools,
         prompt: `
         ${selectedPrompt}
 
