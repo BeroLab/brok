@@ -13,16 +13,6 @@ export interface CodeSnippetImage {
 }
 
 export class CodeSnippetService {
-  private raySo: RaySo;
-
-  constructor() {
-    this.raySo = new RaySo({
-      theme: CardTheme.MIDNIGHT,
-      darkMode: true,
-      background: true,
-    });
-  }
-
   extractCodeBlocks(text: string): CodeBlock[] {
     const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
     const blocks: CodeBlock[] = [];
@@ -44,10 +34,14 @@ export class CodeSnippetService {
     language: string
   ): Promise<Buffer> {
     try {
-      const imageBuffer = await this.raySo
-        .setCoding(code)
-        .setLanguage(language)
-        .cook();
+      const raySo = new RaySo({
+        theme: CardTheme.MIDNIGHT,
+        darkMode: true,
+        background: true,
+        language: language,
+      });
+
+      const imageBuffer = await raySo.cook(code);
 
       return imageBuffer as Buffer;
     } catch (error) {
