@@ -42,24 +42,23 @@ export class CodeSnippetService {
         body: JSON.stringify({
           code,
           language,
-          theme: "one-dark",
-          backgroundColor: "#1a1b26",
+          theme: "dracula",
+          backgroundColor: "#282a36",
           paddingVertical: "56px",
           paddingHorizontal: "56px",
           dropShadow: true,
           dropShadowBlurRadius: "68px",
           dropShadowOffsetY: "20px",
           windowControls: true,
-          lineNumbers: false,
-          firstLineNumber: 1,
           exportSize: "2x",
-          widthAdjustment: true,
           fontFamily: "Fira Code",
           fontSize: "14px",
         }),
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Carbonara API error response: ${errorText}`);
         throw new Error(
           `Carbonara API returned ${response.status}: ${response.statusText}`
         );

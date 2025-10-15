@@ -357,8 +357,13 @@ export const messageWorker = new Worker<MessageJobData>(
         console.log(`📸 Sending ${snippetImages.length} code snippet image(s) inline`);
       }
 
+      if (!finalText && !files) {
+        console.error("⚠️ No content to send - both text and files are empty!");
+        throw new Error("Generated response is empty");
+      }
+
       await api.channels.createMessage(channelId, {
-        content: finalText,
+        content: finalText || undefined,
         message_reference: {
           message_id: messageId,
         },
