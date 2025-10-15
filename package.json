@@ -28,7 +28,6 @@
     "bullmq": "^5.61.0",
     "discord-api-types": "^0.38.30",
     "ioredis": "^5.8.1",
-    "rayso-api": "^1.1.0",
     "zod": "^4.1.12"
   }
 }

@@ -344,8 +344,17 @@ export const messageWorker = new Worker<MessageJobData>(
             }))
           : undefined;
 
+      const embeds =
+        snippetImages.length > 0
+          ? snippetImages.map((img) => ({
+              image: {
+                url: `attachment://${img.filename}`,
+              },
+            }))
+          : undefined;
+
       if (files) {
-        console.log(`📸 Sending ${snippetImages.length} code snippet image(s)`);
+        console.log(`📸 Sending ${snippetImages.length} code snippet image(s) inline`);
       }
 
       await api.channels.createMessage(channelId, {
@@ -354,6 +363,7 @@ export const messageWorker = new Worker<MessageJobData>(
           message_id: messageId,
         },
         files,
+        embeds,
       });
       console.log(`✅ Response sent successfully!`);
 

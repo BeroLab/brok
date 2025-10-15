@@ -1,5 +1,3 @@
-import RaySo, { CardTheme } from "rayso-api";
-
 export interface CodeBlock {
   language: string;
   code: string;
@@ -13,6 +11,8 @@ export interface CodeSnippetImage {
 }
 
 export class CodeSnippetService {
+  private readonly CARBONARA_API_URL = "https://carbonara.solopov.dev/api/cook";
+
   extractCodeBlocks(text: string): CodeBlock[] {
     const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
     const blocks: CodeBlock[] = [];
@@ -34,16 +34,43 @@ export class CodeSnippetService {
     language: string
   ): Promise<Buffer> {
     try {
-      const raySo = new RaySo({
-        theme: CardTheme.MIDNIGHT,
-        darkMode: true,
-        background: true,
-        language: language,
+      const response = await fetch(this.CARBONARA_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          code,
+          language,
+          theme: "one-dark",
+          backgroundColor: "#1a1b26",
+          paddingVertical: "56px",
+          paddingHorizontal: "56px",
+          dropShadow: true,
+          dropShadowBlurRadius: "68px",
+          dropShadowOffsetY: "20px",
+          windowControls: true,
+          lineNumbers: false,
+          firstLineNumber: 1,
+          exportSize: "2x",
+          widthAdjustment: true,
+          fontFamily: "Fira Code",
+          fontSize: "14px",
+        }),
       });
 
-      const imageBuffer = await raySo.cook(code);
+      if (!response.ok) {
+        throw new Error(
+          `Carbonara API returned ${response.status}: ${response.statusText}`
+        );
+      }
 
-      return imageBuffer as Buffer;
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      console.log(`✅ Generated ${buffer.length} bytes image for ${language} code`);
+
+      return buffer;
     } catch (error) {
       console.error("Failed to generate code snippet image:", error);
       throw error;
