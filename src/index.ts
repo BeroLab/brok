@@ -17,6 +17,7 @@ import { ObjectId } from "bson";
 import { rateLimiter } from "./services/rate-limiter";
 import { debouncer } from "./services/debouncer";
 import { messageQueue, setWorkerContext } from "./services/message-queue";
+import axios from "axios";
 
 const prisma = new PrismaClient();
 
@@ -27,7 +28,8 @@ const supportRoles = {
   },
   moderators: {
     ids: ["1370538364964442122", "1394750906620313816"],
-    description: "problemas com outros participantes ou comportamento inadequado",
+    description:
+      "problemas com outros participantes ou comportamento inadequado",
   },
   mentors: {
     ids: ["1392531631385870427"],
@@ -172,9 +174,7 @@ client.on(
         return;
       }
 
-      console.log(
-        `✅ Processing message immediately from ${username}`
-      );
+      console.log(`✅ Processing message immediately from ${username}`);
 
       const concurrencyCount = await rateLimiter.getCurrentConcurrency();
       if (concurrencyCount >= 5) {
@@ -383,6 +383,43 @@ client.on(
           flags: MessageFlags.Ephemeral,
         });
       }
+    }
+  }
+);
+
+client.on(
+  GatewayDispatchEvents.GuildMemberAdd,
+  async ({ data: interaction, api }) => {
+    // ID do cargo freemium = 1403038020642275389
+    // ID do cargo premium = 1407855781872799845
+
+    // PARA TESTAR
+    // ID do cargo freemium = 1433233637444288605
+    // ID do cargo premium = 1433233614367097002
+
+    // Após o usuário entrar no servidor, façam uma requisição para o back-end da berolab e busquem se o usuário é pagante ou não. Após isso, decidam qual cargo deve ser adicionado no usuário usando os IDs acima.
+
+    try {
+
+      // TODO: colocar endpoint real aqui
+      const beroLabUserData = await axios.get(
+        `${process.env.BEROLAB_API_URL}/users/${interaction.user.id}`
+      );
+
+      // TODO: ver com milky se o status de sucesso vai ser 200 ou algum outro
+      if (beroLabUserData.status === 200) {
+        // Adiciona o cargo freemium (ID: 1403038020642275389) ao usuário que acabou de entrar
+        await api.guilds.addRoleToMember(
+          interaction.guild_id,
+          interaction.user.id,
+          "1403038020642275389"
+        );
+      }
+
+      return;
+    } catch (error) {
+      console.error("Erro ao adicionar cargo freemium ao novo membro:", error);
+      // Não envia mensagem ao usuário; log apenas no servidor
     }
   }
 );
