@@ -389,37 +389,82 @@ client.on(
 
 client.on(
   GatewayDispatchEvents.GuildMemberAdd,
-  async ({ data: interaction, api }) => {
-    // ID do cargo freemium = 1403038020642275389
-    // ID do cargo premium = 1407855781872799845
+  async ({ data: member, api }) => {
+    // --- IDs dos Cargos ---
+    // PRODUÇÃO
+    // const FREEMIUM_ROLE_ID = "1403038020642275389";
+    // const PREMIUM_ROLE_ID = "1407855781872799845";
 
-    // PARA TESTAR
-    // ID do cargo freemium = 1433233637444288605
-    // ID do cargo premium = 1433233614367097002
+    //TESTE
+    const FREEMIUM_ROLE_ID = "1433233637444288605";
+    const PREMIUM_ROLE_ID = "1433233614367097002";
+    
 
-    // Após o usuário entrar no servidor, façam uma requisição para o back-end da berolab e busquem se o usuário é pagante ou não. Após isso, decidam qual cargo deve ser adicionado no usuário usando os IDs acima.
+    console.log(`Novo membro detectado: ${member.user.username} (${member.user.id}). Verificando status...`);
 
     try {
-
-      // TODO: colocar endpoint real aqui
-      const beroLabUserData = await axios.get(
-        `${process.env.BEROLAB_API_URL}/users/${interaction.user.id}`
+      const response = await axios.get(
+        `localhost:3000/api/discord/${member.user.id}`,
+        {
+          headers: {
+            Cookie: `next-auth.session-token=${process.env.BEROLAB_AUTH_TOKEN}`
+          }
+        }
       );
 
-      // TODO: ver com milky se o status de sucesso vai ser 200 ou algum outro
-      if (beroLabUserData.status === 200) {
-        // Adiciona o cargo freemium (ID: 1403038020642275389) ao usuário que acabou de entrar
+    
+      if (response.status === 200) {
+        const userData = response.data;
+    
+        if (userData.error) {
+          console.error(`Erro da API para o usuário ${member.user.id}: ${userData.error}`);
+          await api.guilds.addRoleToMember(member.guild_id, member.user.id, FREEMIUM_ROLE_ID);
+          return;
+        }
+
+        // Determina o cargo com base na propriedade 'isPremium'
+        const roleToAssign = userData.isPremium ? PREMIUM_ROLE_ID : FREEMIUM_ROLE_ID;
+        const roleName = userData.isPremium ? "Premium" : "Freemium";
+
+        console.log(`Usuário ${member.user.username} é ${roleName}. Adicionando cargo...`);
+
+        // 3. Adiciona o cargo correspondente ao novo membro
         await api.guilds.addRoleToMember(
-          interaction.guild_id,
-          interaction.user.id,
-          "1403038020642275389"
+          member.guild_id,
+          member.user.id,
+          roleToAssign
         );
+
+        console.log(`Cargo ${roleName} (${roleToAssign}) adicionado com sucesso para ${member.user.username}.`);
+      } else {
+        // Log para o caso de a API retornar um status inesperado (ex: 204 No Content)
+        console.warn(`Status inesperado (${response.status}) recebido da API para o usuário ${member.user.id}.`);
       }
 
-      return;
     } catch (error) {
-      console.error("Erro ao adicionar cargo freemium ao novo membro:", error);
-      // Não envia mensagem ao usuário; log apenas no servidor
+      // 4. Tratamento de erros robusto
+      // Este bloco captura falhas de rede ou respostas de erro da API (4xx, 5xx)
+      if (axios.isAxiosError(error)) {
+        console.error(`Erro ao fazer a requisição para a API BeroLab para o usuário ${member.user.id}:`, {
+          status: error.response?.status,
+          data: error.response?.data,
+          message: error.message,
+        });
+      } else {
+        console.error(`Ocorreu um erro inesperado ao processar o novo membro ${member.user.id}:`, error);
+      }
+
+      // Como fallback, se a API falhar, adicione o cargo freemium para não deixar o usuário sem cargo.
+      try {
+        console.log(`API falhou. Adicionando cargo Freemium padrão para ${member.user.username}.`);
+        await api.guilds.addRoleToMember(
+          member.guild_id,
+          member.user.id,
+          FREEMIUM_ROLE_ID
+        );
+      } catch (fallbackError) {
+        console.error(`Falha ao adicionar o cargo de fallback para ${member.user.id}:`, fallbackError);
+      }
     }
   }
 );
