@@ -46,7 +46,8 @@ const gateway = new WebSocketManager({
   intents:
     GatewayIntentBits.Guilds |
     GatewayIntentBits.GuildMessages |
-    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.MessageContent |
+    GatewayIntentBits.GuildMembers,
   rest,
 });
 
@@ -390,21 +391,17 @@ client.on(
 client.on(
   GatewayDispatchEvents.GuildMemberAdd,
   async ({ data: member, api }) => {
-    // --- IDs dos Cargos ---
-    // PRODUÇÃO
-    // const FREEMIUM_ROLE_ID = "1403038020642275389";
-    // const PREMIUM_ROLE_ID = "1407855781872799845";
 
-    //TESTE
-    const FREEMIUM_ROLE_ID = "1433233637444288605";
-    const PREMIUM_ROLE_ID = "1433233614367097002";
-    
+    const isProduction = process.env.NODE_ENV === 'prod'; 
+
+    const FREEMIUM_ROLE_ID = isProduction ? "1403038020642275389" : "1433233637444288605";
+    const PREMIUM_ROLE_ID = isProduction ? "1407855781872799845" : "1433233614367097002"; 
 
     console.log(`Novo membro detectado: ${member.user.username} (${member.user.id}). Verificando status...`);
 
     try {
       const response = await axios.get(
-        `localhost:3000/api/discord/${member.user.id}`,
+        `${process.env.BEROLAB_API_ENDPOINT}/discord/${member.user.id}`,
         {
           headers: {
             Cookie: `next-auth.session-token=${process.env.BEROLAB_AUTH_TOKEN}`
@@ -422,13 +419,11 @@ client.on(
           return;
         }
 
-        // Determina o cargo com base na propriedade 'isPremium'
         const roleToAssign = userData.isPremium ? PREMIUM_ROLE_ID : FREEMIUM_ROLE_ID;
         const roleName = userData.isPremium ? "Premium" : "Freemium";
 
         console.log(`Usuário ${member.user.username} é ${roleName}. Adicionando cargo...`);
 
-        // 3. Adiciona o cargo correspondente ao novo membro
         await api.guilds.addRoleToMember(
           member.guild_id,
           member.user.id,
@@ -437,13 +432,10 @@ client.on(
 
         console.log(`Cargo ${roleName} (${roleToAssign}) adicionado com sucesso para ${member.user.username}.`);
       } else {
-        // Log para o caso de a API retornar um status inesperado (ex: 204 No Content)
         console.warn(`Status inesperado (${response.status}) recebido da API para o usuário ${member.user.id}.`);
       }
 
     } catch (error) {
-      // 4. Tratamento de erros robusto
-      // Este bloco captura falhas de rede ou respostas de erro da API (4xx, 5xx)
       if (axios.isAxiosError(error)) {
         console.error(`Erro ao fazer a requisição para a API BeroLab para o usuário ${member.user.id}:`, {
           status: error.response?.status,
@@ -454,7 +446,6 @@ client.on(
         console.error(`Ocorreu um erro inesperado ao processar o novo membro ${member.user.id}:`, error);
       }
 
-      // Como fallback, se a API falhar, adicione o cargo freemium para não deixar o usuário sem cargo.
       try {
         console.log(`API falhou. Adicionando cargo Freemium padrão para ${member.user.username}.`);
         await api.guilds.addRoleToMember(
