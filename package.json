@@ -15,7 +15,8 @@
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
-    "register-commands": "bun run src/register-commands.ts"
+    "register-commands": "bun run src/register-commands.ts",
+    "migrate-roles": "bun run src/scripts/migrate-roles.ts"
   },
   "dependencies": {
     "@discordjs/core": "^2.3.0",

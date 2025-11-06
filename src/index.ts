@@ -397,8 +397,6 @@ client.on(
     const FREEMIUM_ROLE_ID = isProduction ? "1403038020642275389" : "1433233637444288605";
     const PREMIUM_ROLE_ID = isProduction ? "1407855781872799845" : "1433233614367097002"; 
 
-    console.log(`Novo membro detectado: ${member.user.username} (${member.user.id}). Verificando status...`);
-
     try {
       const response = await axios.get(
         `${process.env.BEROLAB_API_ENDPOINT}/discord/${member.user.id}`,
