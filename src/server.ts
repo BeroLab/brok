@@ -3,6 +3,8 @@ import { Routes } from "discord-api-types/v10";
 import { z } from "zod";
 
 const CHANNEL_ID = "1436186861642055792";
+const MENTION_USER_ID = "875824126663749632";
+const MENTION_ROLE_ID = "1380019324932198400";
 
 const sucessoSchema = z.object({
   nome: z.string().min(1, "Nome é obrigatório"),
@@ -76,6 +78,7 @@ export function startServer(rest: REST) {
 
             await rest.post(Routes.channelMessages(CHANNEL_ID), {
               body: {
+                content: `<@${MENTION_USER_ID}> <@&${MENTION_ROLE_ID}>`,
                 embeds: [embed],
               },
             });
@@ -106,6 +109,7 @@ export function startServer(rest: REST) {
             // Enviar embed com informações do candidato
             await rest.post(Routes.channelMessages(CHANNEL_ID), {
               body: {
+                content: `<@${MENTION_USER_ID}> <@&${MENTION_ROLE_ID}>`,
                 embeds: [embed],
               },
             });
@@ -214,6 +218,7 @@ export function startServer(rest: REST) {
           // Enviar mensagem para o canal do Discord
           await rest.post(Routes.channelMessages(CHANNEL_ID), {
             body: {
+              content: `<@${MENTION_USER_ID}> <@&${MENTION_ROLE_ID}>`,
               embeds: [embed],
             },
           });
