@@ -18,6 +18,7 @@ import { rateLimiter } from "./services/rate-limiter";
 import { debouncer } from "./services/debouncer";
 import { messageQueue, setWorkerContext } from "./services/message-queue";
 import axios from "axios";
+import { startServer } from "./server";
 
 const prisma = new PrismaClient();
 
@@ -459,3 +460,6 @@ client.on(
 );
 
 gateway.connect();
+
+// Iniciar servidor HTTP para endpoints de análise de currículo
+startServer(rest);
