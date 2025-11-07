@@ -42,46 +42,90 @@ export function startServer(rest: REST) {
           const body = await req.json();
           const validatedData = sucessoSchema.parse(body);
 
-          // Truncar análise se muito longa para o embed
-          const analisePreview =
-            validatedData.analise.length > 4000
-              ? validatedData.analise.substring(0, 3997) + "..."
-              : validatedData.analise;
+          // Discord embed limits:
+          // - Description: 4096 characters
+          // - Field value: 1024 characters
+          // - Total embed: 6000 characters
 
-          // Criar embed bonito
-          const embed = {
-            title: "✅ Análise de Currículo Concluída",
-            description: `Nova análise de currículo foi gerada com sucesso!`,
-            color: 0x00ff00, // Verde
-            fields: [
-              {
-                name: "👤 Candidato",
-                value: validatedData.nome,
-                inline: true,
-              },
-              {
-                name: "📧 Email",
-                value: validatedData.email,
-                inline: true,
-              },
-              {
-                name: "📄 Análise Gerada",
-                value: analisePreview,
-                inline: false,
-              },
-            ],
-            footer: {
-              text: "Análise gerada por IA",
-            },
-            timestamp: new Date().toISOString(),
-          };
+          const maxDescriptionLength = 4000; // Deixar margem de segurança
+          const analiseLength = validatedData.analise.length;
 
-          // Enviar mensagem para o canal do Discord
-          await rest.post(Routes.channelMessages(CHANNEL_ID), {
-            body: {
-              embeds: [embed],
-            },
-          });
+          // Se a análise couber na descrição, usar descrição
+          if (analiseLength <= maxDescriptionLength) {
+            const embed = {
+              title: "✅ Análise de Currículo Concluída",
+              description: validatedData.analise,
+              color: 0x00ff00, // Verde
+              fields: [
+                {
+                  name: "👤 Candidato",
+                  value: validatedData.nome,
+                  inline: true,
+                },
+                {
+                  name: "📧 Email",
+                  value: validatedData.email,
+                  inline: true,
+                },
+              ],
+              footer: {
+                text: "Análise gerada por IA",
+              },
+              timestamp: new Date().toISOString(),
+            };
+
+            await rest.post(Routes.channelMessages(CHANNEL_ID), {
+              body: {
+                embeds: [embed],
+              },
+            });
+          } else {
+            // Se a análise for muito grande, dividir em múltiplas mensagens
+            const embed = {
+              title: "✅ Análise de Currículo Concluída",
+              description: `Nova análise de currículo foi gerada com sucesso!`,
+              color: 0x00ff00, // Verde
+              fields: [
+                {
+                  name: "👤 Candidato",
+                  value: validatedData.nome,
+                  inline: true,
+                },
+                {
+                  name: "📧 Email",
+                  value: validatedData.email,
+                  inline: true,
+                },
+              ],
+              footer: {
+                text: `Análise gerada por IA • ${analiseLength} caracteres`,
+              },
+              timestamp: new Date().toISOString(),
+            };
+
+            // Enviar embed com informações do candidato
+            await rest.post(Routes.channelMessages(CHANNEL_ID), {
+              body: {
+                embeds: [embed],
+              },
+            });
+
+            // Dividir a análise em chunks de 2000 caracteres (limite de mensagem normal)
+            const chunkSize = 2000;
+            const chunks = [];
+            for (let i = 0; i < analiseLength; i += chunkSize) {
+              chunks.push(validatedData.analise.substring(i, i + chunkSize));
+            }
+
+            // Enviar cada chunk como mensagem separada
+            for (let i = 0; i < chunks.length; i++) {
+              await rest.post(Routes.channelMessages(CHANNEL_ID), {
+                body: {
+                  content: `**📄 Análise (Parte ${i + 1}/${chunks.length}):**\n\n${chunks[i]}`,
+                },
+              });
+            }
+          }
 
           return new Response(
             JSON.stringify({
