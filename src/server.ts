@@ -83,7 +83,7 @@ export function startServer(rest: REST) {
               },
             });
           } else {
-            // Se a análise for muito grande, dividir em múltiplas mensagens
+            // Se a análise for muito grande, enviar como arquivo .txt
             const embed = {
               title: "✅ Análise de Currículo Concluída",
               description: `Nova análise de currículo foi gerada com sucesso!`,
@@ -99,6 +99,11 @@ export function startServer(rest: REST) {
                   value: validatedData.email,
                   inline: true,
                 },
+                {
+                  name: "📄 Análise",
+                  value: "A análise completa está disponível no arquivo anexo abaixo.",
+                  inline: false,
+                },
               ],
               footer: {
                 text: `Análise gerada por IA • ${analiseLength} caracteres`,
@@ -106,29 +111,36 @@ export function startServer(rest: REST) {
               timestamp: new Date().toISOString(),
             };
 
-            // Enviar embed com informações do candidato
-            await rest.post(Routes.channelMessages(CHANNEL_ID), {
-              body: {
+            // Criar arquivo txt com a análise
+            const fileName = `analise_${validatedData.nome.replace(/\s+/g, "_").toLowerCase()}_${Date.now()}.txt`;
+            const fileContent = `Análise de Currículo
+Candidato: ${validatedData.nome}
+Email: ${validatedData.email}
+Data: ${new Date().toLocaleString("pt-BR")}
+
+${"=".repeat(80)}
+
+${validatedData.analise}`;
+
+            // Criar FormData com o arquivo
+            const formData = new FormData();
+            formData.append(
+              "payload_json",
+              JSON.stringify({
                 content: `<@${MENTION_USER_ID}> <@&${MENTION_ROLE_ID}>`,
                 embeds: [embed],
-              },
+              })
+            );
+            formData.append(
+              "files[0]",
+              new Blob([fileContent], { type: "text/plain" }),
+              fileName
+            );
+
+            // Enviar embed com arquivo
+            await rest.post(Routes.channelMessages(CHANNEL_ID), {
+              body: formData,
             });
-
-            // Dividir a análise em chunks de 2000 caracteres (limite de mensagem normal)
-            const chunkSize = 2000;
-            const chunks = [];
-            for (let i = 0; i < analiseLength; i += chunkSize) {
-              chunks.push(validatedData.analise.substring(i, i + chunkSize));
-            }
-
-            // Enviar cada chunk como mensagem separada
-            for (let i = 0; i < chunks.length; i++) {
-              await rest.post(Routes.channelMessages(CHANNEL_ID), {
-                body: {
-                  content: `**📄 Análise (Parte ${i + 1}/${chunks.length}):**\n\n${chunks[i]}`,
-                },
-              });
-            }
           }
 
           return new Response(
