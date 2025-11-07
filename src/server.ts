@@ -3,8 +3,8 @@ import { Routes } from "discord-api-types/v10";
 import { z } from "zod";
 
 const CHANNEL_ID = "1436186861642055792";
-const MENTION_USER_ID = "875824126663749632";
-const MENTION_ROLE_ID = "1380019324932198400";
+const MENTION_USER_ID_1 = "875824126663749632";
+const MENTION_USER_ID_2 = "639683391113003009";
 
 const sucessoSchema = z.object({
   nome: z.string().min(1, "Nome é obrigatório"),
@@ -78,7 +78,7 @@ export function startServer(rest: REST) {
 
             await rest.post(Routes.channelMessages(CHANNEL_ID), {
               body: {
-                content: `<@${MENTION_USER_ID}> <@&${MENTION_ROLE_ID}>`,
+                content: `<@${MENTION_USER_ID_1}> <@${MENTION_USER_ID_2}>`,
                 embeds: [embed],
               },
             });
@@ -127,7 +127,7 @@ ${validatedData.analise}`;
             formData.append(
               "payload_json",
               JSON.stringify({
-                content: `<@${MENTION_USER_ID}> <@&${MENTION_ROLE_ID}>`,
+                content: `<@${MENTION_USER_ID_1}> <@${MENTION_USER_ID_2}>`,
                 embeds: [embed],
               })
             );
@@ -230,7 +230,7 @@ ${validatedData.analise}`;
           // Enviar mensagem para o canal do Discord
           await rest.post(Routes.channelMessages(CHANNEL_ID), {
             body: {
-              content: `<@${MENTION_USER_ID}> <@&${MENTION_ROLE_ID}>`,
+              content: `<@${MENTION_USER_ID_1}> <@${MENTION_USER_ID_2}>`,
               embeds: [embed],
             },
           });
