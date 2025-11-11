@@ -42,7 +42,8 @@ const INJECTION_PATTERNS = [
     description: "malicious_intent",
   },
   {
-    pattern: /(delete|remova|apague) (todas|seus) (mem(ó|o)rias|dados|informa(ç|c)(õ|o)es)/gi,
+    pattern:
+      /(delete|remova|apague) (todas|seus) (mem(ó|o)rias|dados|informa(ç|c)(õ|o)es)/gi,
     weight: 3,
     description: "data_deletion",
   },
@@ -64,7 +65,7 @@ const SUSPICIOUS_REPETITIONS = {
 };
 
 export function detectPromptInjection(
-  message: string
+  message: string,
 ): InjectionDetectionResult {
   let score = 0;
   const detectedPatterns: string[] = [];

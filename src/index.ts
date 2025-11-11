@@ -39,7 +39,7 @@ const supportRoles = {
 };
 
 const rest = new REST({ version: "10" }).setToken(
-  process.env.DISCORD_TOKEN ?? ""
+  process.env.DISCORD_TOKEN ?? "",
 );
 
 const gateway = new WebSocketManager({
@@ -94,7 +94,7 @@ client.on(
     if (message.referenced_message) {
       if (message.referenced_message.author.bot) {
         console.log(
-          `⚠️  Ignoring reply to bot message from ${message.author.username}`
+          `⚠️  Ignoring reply to bot message from ${message.author.username}`,
         );
         return;
       }
@@ -105,11 +105,11 @@ client.on(
       messageContent = message.referenced_message.content;
 
       console.log(
-        `📨 Reply context detected! ${message.author.username} mentioned bot in reply to ${username}'s message: "${messageContent}"`
+        `📨 Reply context detected! ${message.author.username} mentioned bot in reply to ${username}'s message: "${messageContent}"`,
       );
     } else {
       console.log(
-        `💬 Direct mention by ${message.author.username}: ${message.content}`
+        `💬 Direct mention by ${message.author.username}: ${message.content}`,
       );
     }
 
@@ -141,23 +141,23 @@ client.on(
         userId,
         messageContent,
         channelId,
-        message.guild_id ?? null
+        message.guild_id ?? null,
       );
 
       if (!debounceResult.shouldProcess) {
         console.log(
-          `⏸️  Debouncing message from ${username}, will process in 4.5s`
+          `⏸️  Debouncing message from ${username}, will process in 4.5s`,
         );
         setTimeout(async () => {
           const hasDebounce = await debouncer.hasDebounceData(userId);
           console.log(
-            `⏰ Debounce timeout reached for ${userId}, hasDebounce: ${hasDebounce}`
+            `⏰ Debounce timeout reached for ${userId}, hasDebounce: ${hasDebounce}`,
           );
           if (hasDebounce) {
             const debounceData = await debouncer.getAndClearData(userId);
             if (debounceData.messages.length > 0) {
               console.log(
-                `📨 Adding ${debounceData.messages.length} debounced messages to queue`
+                `📨 Adding ${debounceData.messages.length} debounced messages to queue`,
               );
               await messageQueue.add("process-message", {
                 userId,
@@ -210,7 +210,7 @@ client.on(
         },
       });
     }
-  }
+  },
 );
 
 client.on(
@@ -230,7 +230,7 @@ client.on(
         ];
 
         const hasPermission = userRoles.some((roleId) =>
-          allSupportRoleIds.includes(roleId)
+          allSupportRoleIds.includes(roleId),
         );
 
         if (!hasPermission) {
@@ -245,11 +245,11 @@ client.on(
         const options = command.data.options ?? [];
         const pergunta = options.find(
           (opt): opt is APIApplicationCommandInteractionDataStringOption =>
-            opt.name === "pergunta"
+            opt.name === "pergunta",
         );
         const resposta = options.find(
           (opt): opt is APIApplicationCommandInteractionDataStringOption =>
-            opt.name === "resposta"
+            opt.name === "resposta",
         );
 
         if (
@@ -386,77 +386,103 @@ client.on(
         });
       }
     }
-  }
+  },
 );
 
 client.on(
   GatewayDispatchEvents.GuildMemberAdd,
   async ({ data: member, api }) => {
+    const isProduction = process.env.NODE_ENV === "prod";
 
-    const isProduction = process.env.NODE_ENV === 'prod'; 
-
-    const FREEMIUM_ROLE_ID = isProduction ? "1403038020642275389" : "1433233637444288605";
-    const PREMIUM_ROLE_ID = isProduction ? "1407855781872799845" : "1433233614367097002"; 
+    const FREEMIUM_ROLE_ID = isProduction
+      ? "1403038020642275389"
+      : "1433233637444288605";
+    const PREMIUM_ROLE_ID = isProduction
+      ? "1407855781872799845"
+      : "1433233614367097002";
 
     try {
       const response = await axios.get(
         `${process.env.BEROLAB_API_ENDPOINT}/discord/${member.user.id}`,
         {
           headers: {
-            Cookie: `next-auth.session-token=${process.env.BEROLAB_AUTH_TOKEN}`
-          }
-        }
+            Cookie: `next-auth.session-token=${process.env.BEROLAB_AUTH_TOKEN}`,
+          },
+        },
       );
 
-    
       if (response.status === 200) {
         const userData = response.data;
-    
+
         if (userData.error) {
-          console.error(`Erro da API para o usuário ${member.user.id}: ${userData.error}`);
-          await api.guilds.addRoleToMember(member.guild_id, member.user.id, FREEMIUM_ROLE_ID);
+          console.error(
+            `Erro da API para o usuário ${member.user.id}: ${userData.error}`,
+          );
+          await api.guilds.addRoleToMember(
+            member.guild_id,
+            member.user.id,
+            FREEMIUM_ROLE_ID,
+          );
           return;
         }
 
-        const roleToAssign = userData.isPremium ? PREMIUM_ROLE_ID : FREEMIUM_ROLE_ID;
+        const roleToAssign = userData.isPremium
+          ? PREMIUM_ROLE_ID
+          : FREEMIUM_ROLE_ID;
         const roleName = userData.isPremium ? "Premium" : "Freemium";
 
-        console.log(`Usuário ${member.user.username} é ${roleName}. Adicionando cargo...`);
+        console.log(
+          `Usuário ${member.user.username} é ${roleName}. Adicionando cargo...`,
+        );
 
         await api.guilds.addRoleToMember(
           member.guild_id,
           member.user.id,
-          roleToAssign
+          roleToAssign,
         );
 
-        console.log(`Cargo ${roleName} (${roleToAssign}) adicionado com sucesso para ${member.user.username}.`);
+        console.log(
+          `Cargo ${roleName} (${roleToAssign}) adicionado com sucesso para ${member.user.username}.`,
+        );
       } else {
-        console.warn(`Status inesperado (${response.status}) recebido da API para o usuário ${member.user.id}.`);
+        console.warn(
+          `Status inesperado (${response.status}) recebido da API para o usuário ${member.user.id}.`,
+        );
       }
-
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        console.error(`Erro ao fazer a requisição para a API BeroLab para o usuário ${member.user.id}:`, {
-          status: error.response?.status,
-          data: error.response?.data,
-          message: error.message,
-        });
+        console.error(
+          `Erro ao fazer a requisição para a API BeroLab para o usuário ${member.user.id}:`,
+          {
+            status: error.response?.status,
+            data: error.response?.data,
+            message: error.message,
+          },
+        );
       } else {
-        console.error(`Ocorreu um erro inesperado ao processar o novo membro ${member.user.id}:`, error);
+        console.error(
+          `Ocorreu um erro inesperado ao processar o novo membro ${member.user.id}:`,
+          error,
+        );
       }
 
       try {
-        console.log(`API falhou. Adicionando cargo Freemium padrão para ${member.user.username}.`);
+        console.log(
+          `API falhou. Adicionando cargo Freemium padrão para ${member.user.username}.`,
+        );
         await api.guilds.addRoleToMember(
           member.guild_id,
           member.user.id,
-          FREEMIUM_ROLE_ID
+          FREEMIUM_ROLE_ID,
         );
       } catch (fallbackError) {
-        console.error(`Falha ao adicionar o cargo de fallback para ${member.user.id}:`, fallbackError);
+        console.error(
+          `Falha ao adicionar o cargo de fallback para ${member.user.id}:`,
+          fallbackError,
+        );
       }
     }
-  }
+  },
 );
 
 gateway.connect();
