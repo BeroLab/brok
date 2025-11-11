@@ -7,12 +7,18 @@ import { rateLimiter } from "./rate-limiter";
 import { debouncer } from "./debouncer";
 import { RATE_LIMITS } from "../config/rate-limits";
 import { IDENTITY_PROMPT, ACID_PROMPT, LAELE_PROMPT } from "../ai/prompts";
-import type { PrismaClient, ChatStyle } from "../generated/prisma";
+import type { PrismaClient } from "../generated/prisma";
 import { detectPromptInjection } from "../security/prompt-injection-detector";
 import { sanitizeInput } from "../security/input-sanitizer";
-import { logInjectionAttempt, getUserInjectionAttemptCount } from "../security/security-logger";
-import { EmojiService } from "./emoji-service";
-import { CodeSnippetService, type CodeSnippetImage } from "./code-snippet-service";
+import {
+  logInjectionAttempt,
+  getUserInjectionAttemptCount,
+} from "../security/security-logger";
+import { EmojiService, type GuildEmoji } from "./emoji-service";
+import {
+  CodeSnippetService,
+  type CodeSnippetImage,
+} from "./code-snippet-service";
 import { redis } from "../config/redis";
 import { createWebSearchTool } from "../tools/web-search";
 import { createContext7SearchTool } from "../tools/context7-search";
@@ -120,7 +126,7 @@ export const messageWorker = new Worker<MessageJobData>(
         } catch (error) {
           console.error(
             `Failed to delete feedback message ${feedbackId}:`,
-            error
+            error,
           );
         }
       }
@@ -139,7 +145,7 @@ export const messageWorker = new Worker<MessageJobData>(
 
       if (detectionResult.isSuspicious) {
         console.log(
-          `🚨 Potential injection detected! User: ${job.data.username}, Score: ${detectionResult.score}, Severity: ${detectionResult.severity}`
+          `🚨 Potential injection detected! User: ${job.data.username}, Score: ${detectionResult.score}, Severity: ${detectionResult.severity}`,
         );
 
         await logInjectionAttempt(prisma, {
@@ -153,14 +159,19 @@ export const messageWorker = new Worker<MessageJobData>(
       }
 
       if (detectionResult.severity === "high") {
-        const attemptCount = await getUserInjectionAttemptCount(prisma, userId, 24);
+        const attemptCount = await getUserInjectionAttemptCount(
+          prisma,
+          userId,
+          24,
+        );
 
         console.log(
-          `⛔ Blocking high-severity injection attempt by ${job.data.username} (${attemptCount} attempts in 24h)`
+          `⛔ Blocking high-severity injection attempt by ${job.data.username} (${attemptCount} attempts in 24h)`,
         );
 
         await api.channels.createMessage(channelId, {
-          content: "opa, detectei algo estranho na sua mensagem 🤨\nse acha que isso é um erro, me marca de novo com outra mensagem!",
+          content:
+            "opa, detectei algo estranho na sua mensagem 🤨\nse acha que isso é um erro, me marca de novo com outra mensagem!",
           message_reference: {
             message_id: messageId,
           },
@@ -211,18 +222,23 @@ export const messageWorker = new Worker<MessageJobData>(
 
       const emojiService = new EmojiService(api);
       let emojiList = "";
+      let guildEmojis: GuildEmoji[] = [];
 
       if (guildId) {
-        const guildEmojis = await emojiService.getGuildEmojis(guildId);
+        guildEmojis = await emojiService.getGuildEmojis(guildId);
         emojiList = emojiService.formatEmojiListForPrompt(guildEmojis);
-        console.log(`🎨 Found ${guildEmojis.length} custom emojis for guild ${guildId}`);
+        console.log(
+          `🎨 Found ${guildEmojis.length} custom emojis for guild ${guildId}`,
+        );
       } else {
         emojiList = "No custom emojis available (DM or no guild).";
         console.log(`🎨 No guild context - skipping emoji fetch`);
       }
 
       const roleCategories = {
-        engineers: supportRoles.engineers.ids.map((id) => `<@&${id}>`).join(" "),
+        engineers: supportRoles.engineers.ids
+          .map((id) => `<@&${id}>`)
+          .join(" "),
         moderators: supportRoles.moderators.ids
           .map((id) => `<@&${id}>`)
           .join(" "),
@@ -235,69 +251,71 @@ export const messageWorker = new Worker<MessageJobData>(
       const context7SearchTool = createContext7SearchTool();
 
       console.log(`🔧 Tool availability check:`);
-      console.log(`  - internet_search: ${webSearchTool ? '✅ AVAILABLE' : '❌ DISABLED (TAVILY_API_KEY not set)'}`);
+      console.log(
+        `  - internet_search: ${webSearchTool ? "✅ AVAILABLE" : "❌ DISABLED (TAVILY_API_KEY not set)"}`,
+      );
       console.log(`  - search_docs: ✅ AVAILABLE`);
       console.log(`  - generate_code_snippet: ✅ AVAILABLE`);
 
       const tools: Record<string, unknown> = {
         generate_code_snippet: tool({
-            description:
-              "Generate a beautiful code snippet image. Use this when the user asks to see code examples. DO NOT write code as text - ALWAYS use this tool instead.",
-            parameters: z.object({
-              code: z
-                .string()
-                .describe("The complete, functional code to display"),
-              language: z
-                .string()
-                .describe(
-                  "Programming language (e.g., javascript, typescript, python, go, rust, etc.)"
-                ),
-              description: z
-                .string()
-                .optional()
-                .describe("Brief description of what the code does"),
-            }),
-            execute: async ({ code, language, description }) => {
-              console.log(`🔧 Tool called - generate_code_snippet`);
-              console.log(`  Language: ${language}`);
-              console.log(`  Code length: ${code?.length || 0} chars`);
-              console.log(`  Description: ${description || 'none'}`);
-
-              if (!code || code.trim().length === 0) {
-                console.error("❌ Tool received empty code parameter!");
-                return {
-                  success: false,
-                  message: "Cannot generate image: code parameter is empty",
-                };
-              }
-
-              const codeSnippetService = new CodeSnippetService();
-              try {
-                const buffer = await codeSnippetService.generateSnippetImage(
-                  code,
-                  language
-                );
-                snippetImages.push({
-                  filename: `snippet-${snippetImages.length + 1}.png`,
-                  buffer,
-                  language,
-                });
-                console.log(
-                  `✅ Generated code snippet image for ${language}${description ? `: ${description}` : ""}`
-                );
-                return {
-                  success: true,
-                  message: `Code snippet image generated successfully${description ? ` for: ${description}` : ""}`,
-                };
-              } catch (error) {
-                console.error("Failed to generate code snippet image:", error);
-                return {
-                  success: false,
-                  message: "Failed to generate code snippet image",
-                };
-              }
-            },
+          description:
+            "Generate a beautiful code snippet image. Use this when the user asks to see code examples. DO NOT write code as text - ALWAYS use this tool instead.",
+          parameters: z.object({
+            code: z
+              .string()
+              .describe("The complete, functional code to display"),
+            language: z
+              .string()
+              .describe(
+                "Programming language (e.g., javascript, typescript, python, go, rust, etc.)",
+              ),
+            description: z
+              .string()
+              .optional()
+              .describe("Brief description of what the code does"),
           }),
+          execute: async ({ code, language, description }) => {
+            console.log(`🔧 Tool called - generate_code_snippet`);
+            console.log(`  Language: ${language}`);
+            console.log(`  Code length: ${code?.length || 0} chars`);
+            console.log(`  Description: ${description || "none"}`);
+
+            if (!code || code.trim().length === 0) {
+              console.error("❌ Tool received empty code parameter!");
+              return {
+                success: false,
+                message: "Cannot generate image: code parameter is empty",
+              };
+            }
+
+            const codeSnippetService = new CodeSnippetService();
+            try {
+              const buffer = await codeSnippetService.generateSnippetImage(
+                code,
+                language,
+              );
+              snippetImages.push({
+                filename: `snippet-${snippetImages.length + 1}.png`,
+                buffer,
+                language,
+              });
+              console.log(
+                `✅ Generated code snippet image for ${language}${description ? `: ${description}` : ""}`,
+              );
+              return {
+                success: true,
+                message: `Code snippet image generated successfully${description ? ` for: ${description}` : ""}`,
+              };
+            } catch (error) {
+              console.error("Failed to generate code snippet image:", error);
+              return {
+                success: false,
+                message: "Failed to generate code snippet image",
+              };
+            }
+          },
+        }),
       };
 
       if (webSearchTool) {
@@ -306,7 +324,7 @@ export const messageWorker = new Worker<MessageJobData>(
 
       tools.search_docs = context7SearchTool;
 
-      const availableTools = Object.keys(tools).join(', ');
+      const availableTools = Object.keys(tools).join(", ");
       console.log(`🛠️  Loaded tools for generation: ${availableTools}`);
 
       const { text } = await generateText({
@@ -356,7 +374,20 @@ export const messageWorker = new Worker<MessageJobData>(
         `,
       });
 
-      const finalText = text
+      let validatedText = text;
+      if (guildId) {
+        const validEmojiIds = new Set(guildEmojis.map((emoji) => emoji.id));
+        const emojiRegex = /<a?:([a-zA-Z0-9_]+):([0-9]+)>/g;
+
+        validatedText = text.replace(emojiRegex, (match, name, id) => {
+          if (validEmojiIds.has(id)) {
+            return match;
+          }
+          return `:${name}:`;
+        });
+      }
+
+      const finalText = validatedText
         .replace(/<think>[\s\S]*?<\/think>/gi, "")
         .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
         .replace(/\(nenhuma info sensível aqui[^)]*\)/gi, "")
@@ -389,7 +420,9 @@ export const messageWorker = new Worker<MessageJobData>(
           : undefined;
 
       if (files) {
-        console.log(`📸 Sending ${snippetImages.length} code snippet image(s) inline`);
+        console.log(
+          `📸 Sending ${snippetImages.length} code snippet image(s) inline`,
+        );
       } else if (finalText) {
         console.log(`📝 Sending text-only response (no images generated)`);
       }
@@ -429,7 +462,7 @@ export const messageWorker = new Worker<MessageJobData>(
       max: RATE_LIMITS.GLOBAL_CONCURRENT,
       duration: 1000,
     },
-  }
+  },
 );
 
 messageWorker.on("completed", (job) => {
@@ -446,7 +479,9 @@ messageWorker.on("failed", async (job, err) => {
       const alreadySent = await redis.get(errorNotificationKey);
 
       if (alreadySent) {
-        console.log(`⏭️  Error notification already sent for job ${job.id}, skipping`);
+        console.log(
+          `⏭️  Error notification already sent for job ${job.id}, skipping`,
+        );
         return;
       }
 
