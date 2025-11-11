@@ -70,6 +70,33 @@ export class RateLimiter {
     const key = REDIS_KEYS.channelProcessing(channelId);
     await redis.del(key);
   }
+
+  async checkQueueIngress(userId: string): Promise<{
+    allowed: boolean;
+    remainingRequests?: number;
+  }> {
+    const key = REDIS_KEYS.queueIngress(userId);
+    const now = Date.now();
+    const window = RATE_LIMITS.QUEUE_INGRESS_WINDOW_SECONDS * 1000;
+
+    const multi = redis.multi();
+    multi.zremrangebyscore(key, 0, now - window);
+    multi.zadd(key, now, now.toString());
+    multi.zcard(key);
+    multi.expire(key, RATE_LIMITS.QUEUE_INGRESS_WINDOW_SECONDS);
+
+    const results = await multi.exec();
+    const count = results[2][1] as number;
+
+    if (count > RATE_LIMITS.QUEUE_INGRESS_LIMIT) {
+      return { allowed: false, remainingRequests: 0 };
+    }
+
+    return {
+      allowed: true,
+      remainingRequests: RATE_LIMITS.QUEUE_INGRESS_LIMIT - count,
+    };
+  }
 }
 
 export const rateLimiter = new RateLimiter();

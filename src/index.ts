@@ -15,7 +15,6 @@ import { IDENTITY_PROMPT } from "./ai/prompts";
 import { PrismaClient, ChatStyle } from "./generated/prisma";
 import { ObjectId } from "bson";
 import { rateLimiter } from "./services/rate-limiter";
-import { debouncer } from "./services/debouncer";
 import { messageQueue, setWorkerContext } from "./services/message-queue";
 import axios from "axios";
 import { startServer } from "./server";
@@ -126,80 +125,81 @@ client.on(
         return;
       }
 
-      const cooldownCheck = await rateLimiter.canUserSendMessage(userId);
-      if (!cooldownCheck.allowed) {
-        await api.channels.createMessage(channelId, {
-          content: `⏳ calma aí mano, espera mais ${cooldownCheck.remainingSeconds} segundos antes de me marcar de novo!`,
-          message_reference: {
-            message_id: message.id,
-          },
-        });
-        return;
-      }
+      const ingressCheck = await rateLimiter.checkQueueIngress(userId);
+      if (!ingressCheck.allowed) {
+        const existingJobs = await messageQueue.getJobs(["waiting", "delayed"]);
+        const userQueueCount = existingJobs.filter(
+          (job) => job.data.userId === userId,
+        ).length;
 
-      const debounceResult = await debouncer.addMessage(
-        userId,
-        messageContent,
-        channelId,
-        message.guild_id ?? null,
-      );
+        if (userQueueCount > 0) {
+          const feedbackMessage = await api.channels.createMessage(channelId, {
+            content: `🔥 sua mensagem foi pra fila! posição: ${userQueueCount + 1}`,
+            message_reference: {
+              message_id: message.id,
+            },
+          });
 
-      if (!debounceResult.shouldProcess) {
-        console.log(
-          `⏸️  Debouncing message from ${username}, will process in 4.5s`,
-        );
-        setTimeout(async () => {
-          const hasDebounce = await debouncer.hasDebounceData(userId);
-          console.log(
-            `⏰ Debounce timeout reached for ${userId}, hasDebounce: ${hasDebounce}`,
+          await messageQueue.add(
+            "process-message",
+            {
+              userId,
+              username,
+              channelId,
+              messageId,
+              messageContent,
+              botMention,
+              feedbackMessageIds: [feedbackMessage.id],
+              guildId: message.guild_id ?? null,
+            },
+            {
+              jobId: message.id,
+            },
           );
-          if (hasDebounce) {
-            const debounceData = await debouncer.getAndClearData(userId);
-            if (debounceData.messages.length > 0) {
-              console.log(
-                `📨 Adding ${debounceData.messages.length} debounced messages to queue`,
-              );
-              await messageQueue.add("process-message", {
-                userId,
-                username,
-                channelId,
-                messageId,
-                messageContent: debounceData.messages.join("\n\n---\n\n"),
-                botMention,
-                feedbackMessageIds: [],
-                guildId: debounceData.guildId ?? null,
-              });
-            }
-          }
-        }, 4500);
-
+        } else {
+          await api.channels.createMessage(channelId, {
+            content: `🥵 eita, calma aí! você mandou muitas mensagens rápido demais. espera um pouco e tenta de novo.`,
+            message_reference: {
+              message_id: message.id,
+            },
+            flags: MessageFlags.Ephemeral,
+          });
+        }
         return;
       }
 
-      console.log(`✅ Processing message immediately from ${username}`);
+      const existingJobs = await messageQueue.getJobs(["waiting", "delayed"]);
+      const userQueueCount = existingJobs.filter(
+        (job) => job.data.userId === userId,
+      ).length;
 
-      const concurrencyCount = await rateLimiter.getCurrentConcurrency();
-      if (concurrencyCount >= 5) {
-        await api.channels.createMessage(channelId, {
-          content:
-            "🚦 to processando muita coisa agora, aguarda um pouquinho e me marca de novo!",
+      let feedbackMessageIds: string[] = [];
+      if (userQueueCount > 0) {
+        const feedbackMessage = await api.channels.createMessage(channelId, {
+          content: `🔥 sua mensagem foi pra fila! posição: ${userQueueCount + 1}`,
           message_reference: {
             message_id: message.id,
           },
         });
-        return;
+        feedbackMessageIds.push(feedbackMessage.id);
       }
 
-      await messageQueue.add("process-message", {
-        userId,
-        username,
-        channelId,
-        messageId,
-        messageContent,
-        botMention,
-        feedbackMessageIds: [],
-        guildId: message.guild_id ?? null,
-      });
+      await messageQueue.add(
+        "process-message",
+        {
+          userId,
+          username,
+          channelId,
+          messageId,
+          messageContent,
+          botMention,
+          feedbackMessageIds,
+          guildId: message.guild_id ?? null,
+        },
+        {
+          jobId: message.id,
+        },
+      );
     } catch (error) {
       console.error("Error handling message:", error);
       await api.channels.createMessage(channelId, {
