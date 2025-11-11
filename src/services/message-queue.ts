@@ -4,8 +4,7 @@ import type { RawFile } from "@discordjs/rest";
 import { generateText, tool } from "ai";
 import { z } from "zod";
 import { rateLimiter } from "./rate-limiter";
-import { debouncer } from "./debouncer";
-import { RATE_LIMITS } from "../config/rate-limits";
+import { RATE_LIMITS, REDIS_KEYS } from "../config/rate-limits";
 import { IDENTITY_PROMPT, ACID_PROMPT, LAELE_PROMPT } from "../ai/prompts";
 import type { PrismaClient } from "../generated/prisma";
 import { detectPromptInjection } from "../security/prompt-injection-detector";
@@ -108,6 +107,20 @@ export const messageWorker = new Worker<MessageJobData>(
       guildId,
     } = job.data;
 
+    const userLockKey = REDIS_KEYS.userProcessing(userId);
+    const lockAcquired = await redis.set(userLockKey, "1", "EX", 300, "NX");
+
+    if (!lockAcquired) {
+      console.log(
+        `🔄 User ${userId} is already being processed. Re-queuing job ${job.id}.`,
+      );
+      await messageQueue.add(job.name, job.data, {
+        delay: 5000,
+        jobId: job.id,
+      });
+      return;
+    }
+
     let slotAcquired = false;
     let typingInterval: NodeJS.Timeout | null = null;
 
@@ -131,14 +144,7 @@ export const messageWorker = new Worker<MessageJobData>(
         }
       }
 
-      const debounceMessages =
-        (await debouncer.getAndClearMessages(userId)) || [];
-      const allMessages =
-        debounceMessages.length > 0 ? debounceMessages : [messageContent];
-
-      const combinedMessage = allMessages
-        .map((msg) => msg.replace(botMention, "").trim())
-        .join("\n\n---\n\n");
+      const combinedMessage = messageContent.replace(botMention, "").trim();
 
       const detectionResult = detectPromptInjection(combinedMessage);
       const sanitizationResult = sanitizeInput(combinedMessage);
@@ -453,15 +459,12 @@ export const messageWorker = new Worker<MessageJobData>(
         await rateLimiter.releaseGlobalSlot();
       }
       await rateLimiter.unmarkChannelProcessing(channelId);
+      await redis.del(userLockKey);
     }
   },
   {
     connection,
     concurrency: RATE_LIMITS.GLOBAL_CONCURRENT,
-    limiter: {
-      max: RATE_LIMITS.GLOBAL_CONCURRENT,
-      duration: 1000,
-    },
   },
 );
 
