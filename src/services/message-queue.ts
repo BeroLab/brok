@@ -381,11 +381,21 @@ export const messageWorker = new Worker<MessageJobData>(
       });
 
       let validatedText = text;
-      if (guildId) {
+      if (guildId && guildEmojis.length > 0) {
+        const emojiMap = new Map<string, string>();
+        guildEmojis.forEach((emoji) => {
+          const prefix = emoji.animated ? "a" : "";
+          emojiMap.set(emoji.name, `<${prefix}:${emoji.name}:${emoji.id}>`);
+        });
+
+        validatedText = text.replace(/:([a-zA-Z0-9_]+):/g, (match, name) => {
+          return emojiMap.get(name) || match;
+        });
+
         const validEmojiIds = new Set(guildEmojis.map((emoji) => emoji.id));
         const emojiRegex = /<a?:([a-zA-Z0-9_]+):([0-9]+)>/g;
 
-        validatedText = text.replace(emojiRegex, (match, name, id) => {
+        validatedText = validatedText.replace(emojiRegex, (match, name, id) => {
           if (validEmojiIds.has(id)) {
             return match;
           }
