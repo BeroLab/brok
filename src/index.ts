@@ -17,6 +17,7 @@ import { ObjectId } from "bson";
 import { rateLimiter } from "./services/rate-limiter";
 import { messageQueue, setWorkerContext } from "./services/message-queue";
 import axios from "axios";
+import { startMigrationCronJob } from "./scripts/cron-jobs";
 import { startServer } from "./server";
 
 const prisma = new PrismaClient();
@@ -74,6 +75,8 @@ client.once(GatewayDispatchEvents.Ready, ({ data }) => {
   });
 
   console.log("✅ Worker context initialized");
+
+  startMigrationCronJob(client.api, botId);
 });
 
 client.on(
