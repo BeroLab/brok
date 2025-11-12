@@ -115,13 +115,29 @@ client.on(
     try {
       const isChannelBusy = await rateLimiter.isChannelProcessing(channelId);
       if (isChannelBusy) {
-        await api.channels.createMessage(channelId, {
-          content:
-            "⚠️ já to respondendo outra mensagem aqui, peraí que logo respondo você!",
+        const feedbackMessage = await api.channels.createMessage(channelId, {
+          content: `⚠️ já to respondendo outra mensagem aqui, peraí que logo respondo você!`,
           message_reference: {
             message_id: message.id,
           },
         });
+
+        await messageQueue.add(
+          "process-message",
+          {
+            userId,
+            username,
+            channelId,
+            messageId,
+            messageContent,
+            botMention,
+            feedbackMessageIds: [feedbackMessage.id],
+            guildId: message.guild_id ?? null,
+          },
+          {
+            jobId: message.id,
+          },
+        );
         return;
       }
 
