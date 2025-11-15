@@ -16,6 +16,7 @@ import { PrismaClient, ChatStyle } from "./generated/prisma";
 import { ObjectId } from "bson";
 import { rateLimiter } from "./services/rate-limiter";
 import { messageQueue, setWorkerContext } from "./services/message-queue";
+import { initializeDailyEventScheduler } from "./services/daily-event-scheduler";
 import axios from "axios";
 import { startServer } from "./server";
 
@@ -61,7 +62,7 @@ const model = openrouter("google/gemini-2.0-flash-001");
 
 let botId: string;
 
-client.once(GatewayDispatchEvents.Ready, ({ data }) => {
+client.once(GatewayDispatchEvents.Ready, async ({ data }) => {
   botId = data.user.id;
   console.log(`Ready! Logged in as ${data.user.username}`);
 
@@ -74,6 +75,14 @@ client.once(GatewayDispatchEvents.Ready, ({ data }) => {
   });
 
   console.log("✅ Worker context initialized");
+
+  await initializeDailyEventScheduler({
+    model,
+    discordToken: process.env.DISCORD_TOKEN ?? "",
+    berolabEndpoint: process.env.BEROLAB_API_ENDPOINT ?? "",
+    berolabToken: process.env.BEROLAB_AUTH_TOKEN ?? "",
+    channelId: process.env.DAILY_EVENT_CHANNEL_ID ?? "1371887722008150109",
+  });
 });
 
 client.on(
