@@ -14,23 +14,33 @@
   },
   "scripts": {
     "dev": "bun run --watch src/index.ts",
+    "dev:api": "bun run --watch src/api/index.ts",
     "start": "bun run src/index.ts",
+    "start:api": "bun run src/api/index.ts",
     "register-commands": "bun run src/register-commands.ts",
     "migrate-roles": "bun run src/scripts/migrate-roles.ts",
-    "get-calendar": "bun run src/scripts/get-calendar.ts"
+    "get-calendar": "bun run src/scripts/get-calendar.ts",
+    "db:seed": "bun run src/scripts/seed-prompts.ts",
+    "db:push": "bunx prisma db push",
+    "db:generate": "bunx prisma generate"
   },
   "dependencies": {
+    "@better-auth/cli": "^1.4.7",
     "@discordjs/core": "^2.3.0",
     "@discordjs/rest": "^2.6.0",
     "@discordjs/ws": "^2.0.3",
+    "@hono/zod-validator": "^0.7.6",
     "@openrouter/ai-sdk-provider": "^1.2.0",
     "@prisma/client": "^6.17.1",
     "@tavily/core": "^0.5.12",
     "ai": "^5.0.68",
+    "better-auth": "^1.4.7",
     "bson": "^6.10.4",
     "bullmq": "^5.61.0",
     "discord-api-types": "^0.38.30",
+    "hono": "^4.11.1",
     "ioredis": "^5.8.1",
+    "mongodb": "^7.0.0",
     "zod": "^4.1.12"
   }
 }

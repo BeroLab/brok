@@ -1,0 +1,23 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: brok-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - brok_mongo_data:/data/db
+    restart: unless-stopped
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+
+  redis:
+    image: redis:7-alpine
+    container_name: brok-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - brok_redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  brok_mongo_data:
+  brok_redis_data:

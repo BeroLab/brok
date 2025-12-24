@@ -6,7 +6,7 @@ import { z } from "zod";
 import { rateLimiter } from "./rate-limiter";
 import { RATE_LIMITS, REDIS_KEYS } from "../config/rate-limits";
 import { IDENTITY_PROMPT, ACID_PROMPT, LAELE_PROMPT } from "../ai/prompts";
-import type { PrismaClient } from "../generated/prisma";
+import type { PrismaClient, ChatStyle } from "../generated/prisma";
 import { detectPromptInjection } from "../security/prompt-injection-detector";
 import { sanitizeInput } from "../security/input-sanitizer";
 import {
@@ -213,18 +213,12 @@ export const messageWorker = new Worker<MessageJobData>(
 
       console.log(`🎯 User preferences:`, userPreferences);
 
-      let selectedPrompt = IDENTITY_PROMPT;
-      let promptType = "INFORMATIVE";
+      const { content: selectedPrompt, slug: promptSlug } = await getPromptContent(
+        prisma,
+        userPreferences?.chatStyle ?? null
+      );
 
-      if (userPreferences?.chatStyle === "acid") {
-        selectedPrompt = ACID_PROMPT;
-        promptType = "ACID";
-      } else if (userPreferences?.chatStyle === "laele") {
-        selectedPrompt = LAELE_PROMPT;
-        promptType = "LAELE";
-      }
-
-      console.log(`🗣️  Using ${promptType} prompt`);
+      console.log(`🗣️  Using ${promptSlug.toUpperCase()} prompt (from database)`);
 
       const emojiService = new EmojiService(api);
       let emojiList = "";
@@ -520,5 +514,43 @@ messageWorker.on("failed", async (job, err) => {
 messageWorker.on("error", (err) => {
   console.error("❌ Worker error:", err);
 });
+
+// Map chat style to prompt slug
+const CHAT_STYLE_TO_SLUG: Record<ChatStyle, string> = {
+  informative: "informative",
+  acid: "acid",
+  laele: "laele",
+};
+
+// Fallback prompts in case database is unavailable
+const FALLBACK_PROMPTS: Record<string, string> = {
+  informative: IDENTITY_PROMPT,
+  acid: ACID_PROMPT,
+  laele: LAELE_PROMPT,
+};
+
+async function getPromptContent(
+  prisma: PrismaClient,
+  chatStyle: ChatStyle | null
+): Promise<{ content: string; slug: string }> {
+  const slug = chatStyle ? CHAT_STYLE_TO_SLUG[chatStyle] : "informative";
+
+  try {
+    const prompt = await prisma.prompt.findUnique({
+      where: { slug },
+    });
+
+    if (prompt?.isActive && prompt.content) {
+      return { content: prompt.content, slug };
+    }
+  } catch (error) {
+    console.warn(`⚠️ Failed to fetch prompt from database, using fallback:`, error);
+  }
+
+  return {
+    content: FALLBACK_PROMPTS[slug] || IDENTITY_PROMPT,
+    slug,
+  };
+}
 
 console.log("🚀 Message queue worker started");
